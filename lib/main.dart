@@ -63,10 +63,8 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _url = prefs.getString('brain_url') ??
           dotenv.env['IBECOME_URL'] ??
-          '';
-      _token = prefs.getString('brain_token') ??
-          dotenv.env['IBECOME_TOKEN'] ??
-          '';
+          'https://ibeco.me';
+      _token = prefs.getString('brain_token') ?? '';
       _loading = false;
     });
   }
