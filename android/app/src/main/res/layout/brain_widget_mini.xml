@@ -3,13 +3,11 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:gravity="center"
+    android:background="@drawable/widget_background_mini"
+    android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="8dp"
-    android:paddingEnd="8dp"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp">
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp">
 
     <!-- Brain icon — tappable, launches main app -->
     <TextView
@@ -17,10 +15,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="🧠"
-        android:textSize="20sp"
+        android:textSize="16sp"
         android:clickable="true"
-        android:focusable="true"
-        android:padding="2dp" />
+        android:focusable="true" />
 
     <!-- Spacer -->
     <View
@@ -31,9 +28,9 @@
     <!-- + button (text mode quick-add) -->
     <ImageButton
         android:id="@+id/btn_add"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginEnd="8dp"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginEnd="6dp"
         android:background="@drawable/widget_button_bg"
         android:contentDescription="New entry"
         android:src="@android:drawable/ic_input_add"
@@ -43,8 +40,8 @@
     <!-- Mic button (voice mode quick-add) -->
     <ImageButton
         android:id="@+id/btn_mic"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
         android:background="@drawable/widget_button_bg"
         android:contentDescription="Voice capture"
         android:src="@android:drawable/ic_btn_speak_now"
