@@ -161,6 +161,8 @@ class HistoryEntry {
   final bool? actionDone;
   final String? status;
   final String? dueDate;
+  final String? nextAction;
+  final List<String> tags;
 
   HistoryEntry({
     required this.id,
@@ -173,6 +175,8 @@ class HistoryEntry {
     this.actionDone,
     this.status,
     this.dueDate,
+    this.nextAction,
+    this.tags = const [],
   });
 
   /// Whether this entry is "done" (action completed or project status=done).
@@ -198,6 +202,8 @@ class HistoryEntry {
       actionDone: json['action_done'],
       status: json['status'],
       dueDate: json['due_date'],
+      nextAction: json['next_action'],
+      tags: _parseTags(json['tags']),
     );
   }
 
@@ -214,6 +220,14 @@ class HistoryEntry {
       actionDone: json['action_done'],
       status: json['status'],
       dueDate: json['due_date'],
+      nextAction: json['next_action'],
+      tags: _parseTags(json['tags']),
     );
+  }
+
+  static List<String> _parseTags(dynamic v) {
+    if (v is List) return v.map((e) => e.toString()).toList();
+    if (v is String && v.isNotEmpty) return v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    return [];
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/brain_api.dart';
+import 'edit_entry_screen.dart';
 import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -93,6 +94,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _editEntry(HistoryEntry entry) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditEntryScreen(api: widget.api, entry: entry),
+      ),
+    );
+    if (changed == true) {
+      await _loadHistory();
     }
   }
 
@@ -217,6 +229,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: _HistoryCard(
               entry: entry,
               onToggleDone: entry.isActionable ? () => _toggleDone(entry) : null,
+              onTap: () => _editEntry(entry),
             ),
           );
         },
@@ -228,8 +241,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 class _HistoryCard extends StatelessWidget {
   final HistoryEntry entry;
   final VoidCallback? onToggleDone;
+  final VoidCallback? onTap;
 
-  const _HistoryCard({required this.entry, this.onToggleDone});
+  const _HistoryCard({required this.entry, this.onToggleDone, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -242,8 +256,11 @@ class _HistoryCard extends StatelessWidget {
     return Card(
       elevation: 0,
       color: colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -363,6 +380,49 @@ class _HistoryCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
 
+            // Next action
+            if (entry.nextAction != null && entry.nextAction!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.arrow_forward, size: 14, color: Colors.blue.shade600),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      entry.nextAction!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.blue.shade600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Tags
+            if (entry.tags.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 4,
+                runSpacing: 2,
+                children: entry.tags.map((tag) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: colorScheme.outline.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    tag,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.outline,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+
             // Status
             if (!entry.processed) ...[
               const SizedBox(height: 6),
@@ -381,6 +441,7 @@ class _HistoryCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }
