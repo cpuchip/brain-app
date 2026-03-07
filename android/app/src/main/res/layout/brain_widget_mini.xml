@@ -9,20 +9,29 @@
     android:orientation="horizontal"
     android:padding="6dp">
 
-    <!-- Brain icon -->
+    <!-- Brain icon — tappable, launches main app -->
     <TextView
+        android:id="@+id/btn_brain"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="🧠"
-        android:textSize="20sp"
-        android:layout_marginEnd="8dp" />
+        android:textSize="22sp"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="4dp" />
+
+    <!-- Spacer -->
+    <View
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
     <!-- + button (text mode quick-add) -->
     <ImageButton
         android:id="@+id/btn_add"
         android:layout_width="36dp"
         android:layout_height="36dp"
-        android:layout_marginEnd="6dp"
+        android:layout_marginEnd="12dp"
         android:background="@drawable/widget_button_bg"
         android:contentDescription="New entry"
         android:src="@android:drawable/ic_input_add"

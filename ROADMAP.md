@@ -36,6 +36,7 @@ The vision: a pocket-sized brain that captures thoughts, learns from you, and in
   - Code review: summarize open PRs, approve/comment from mobile
 - [ ] **Multi-model support** — choose between local (LM Studio) and cloud models for classification
 - [ ] **Rich text / markdown body** — format entry bodies with basic markdown
+- [ ] **Sub-tasks / checklists** — checkable sub-items under an entry (e.g., a shopping list where each item is individually checkable with optional quantity). Needs data model changes in brain.exe, API endpoints, and Flutter UI.
 - [ ] **Entry linking** — connect related entries (e.g., action → project → idea)
 - [ ] **Attachments** — photos, screenshots, voice memos attached to entries
 - [ ] **Becoming-MCP → brain.exe direct connection** — becoming-mcp can optionally connect directly to brain.exe for semantic vector search and full entry access, even without ibeco.me relay. Maximum flexibility: use ibeco.me, brain.exe, or both.

@@ -103,6 +103,15 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   }
 
   Future<void> _classify() async {
+    if (!widget.api.hasBrainUrl) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Set Brain URL in Settings to use AI classification'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() => _classifying = true);
     try {
       final updated = await widget.api.classifyEntry(widget.entry.id);
@@ -191,8 +200,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
         appBar: AppBar(
           title: const Text('Edit Entry'),
           actions: [
-            if (widget.api.hasBrainUrl)
-              IconButton(
+            IconButton(
                 onPressed: _classifying ? null : _classify,
                 icon: _classifying
                     ? const SizedBox(

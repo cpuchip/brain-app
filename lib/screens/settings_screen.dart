@@ -111,7 +111,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         automaticallyImplyLeading: !widget.firstRun,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          24,
+          24,
+          24 + MediaQuery.of(context).padding.bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
