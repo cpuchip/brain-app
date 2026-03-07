@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 2x1 ultra-compact layout: brain icon + mic + add in a single row -->
+<!-- 2x1 ultra-compact layout: brain icon + add + mic in a single row -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
     android:gravity="center"
     android:orientation="horizontal"
-    android:padding="6dp">
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
 
     <!-- Brain icon — tappable, launches main app -->
     <TextView
@@ -15,23 +17,23 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="🧠"
-        android:textSize="22sp"
+        android:textSize="20sp"
         android:clickable="true"
         android:focusable="true"
-        android:padding="4dp" />
+        android:padding="2dp" />
 
     <!-- Spacer -->
     <View
         android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_height="1dp"
         android:layout_weight="1" />
 
     <!-- + button (text mode quick-add) -->
     <ImageButton
         android:id="@+id/btn_add"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginEnd="12dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="8dp"
         android:background="@drawable/widget_button_bg"
         android:contentDescription="New entry"
         android:src="@android:drawable/ic_input_add"
@@ -41,8 +43,8 @@
     <!-- Mic button (voice mode quick-add) -->
     <ImageButton
         android:id="@+id/btn_mic"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:background="@drawable/widget_button_bg"
         android:contentDescription="Voice capture"
         android:src="@android:drawable/ic_btn_speak_now"
