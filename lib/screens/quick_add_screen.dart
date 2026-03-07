@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:home_widget/home_widget.dart';
 import '../services/brain_api.dart';
 import '../services/speech_service.dart';
+import '../services/widget_service.dart';
 
 /// Transparent overlay screen launched from the home widget.
 ///
@@ -95,6 +97,11 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
         body: '',
         category: _category,
       );
+      // Refresh widget data so the new entry appears
+      try {
+        final entries = await widget.api.getHistory(limit: 50);
+        await WidgetService().updateWidget(entries);
+      } catch (_) {}
       if (mounted) _dismiss();
     } catch (e) {
       if (mounted) {

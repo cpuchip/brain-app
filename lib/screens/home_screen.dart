@@ -76,6 +76,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // Focus text field and start listening
         _focusNode.requestFocus();
         _speech.startListening();
+      } else if (uri.host == 'refresh') {
+        // Widget refresh button — just trigger a widget data update
+        _updateWidget();
       } else if (uri.host == 'entry' && uri.pathSegments.isNotEmpty) {
         final entryId = uri.pathSegments.first;
         _openEntryById(entryId);

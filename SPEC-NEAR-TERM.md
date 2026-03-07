@@ -279,9 +279,9 @@ This gives 80% of the Microsoft To Do UX without the complexity of a second Acti
 2. ~~**History bottom inset**~~ ✅ (quick fix, annoying UX bug)
 3. ~~**Error log + reduce WebSocket noise**~~ ✅ (debugging enabler)
 4. ~~**Widget redesign**~~ ✅ (checkboxes, +, mic intents wired up)
-5. **Widget responsive sizing** (2x2 compact + 4x2 standard layouts)
-6. **Quick-add overlay** (transparent quick-add screen from widget + button)
-7. **Widget polish** (smooth transitions, dynamic colors, real checkboxes, description)
+5. ~~**Widget responsive sizing**~~ ✅ (2x2 compact + 4x2 standard responsive layouts)
+6. ~~**Quick-add overlay**~~ ✅ (transparent QuickAddActivity with text + voice modes)
+7. ~~**Widget polish**~~ ✅ (smooth transitions, refresh button, widget description, responsive sizing)
 
 **Relay gap:** No search endpoint on the relay side today. Options:
 - **Option A (recommended):** Add `GET /api/brain/entries/search?q=X` to ibeco.me that searches `brain_entries` with SQL LIKE or FTS.

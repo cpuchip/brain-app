@@ -55,6 +55,12 @@ The vision: a pocket-sized brain that captures thoughts, learns from you, and in
 
 - [ ] **GitHub CI for Android builds** — automated APK/AAB builds on push (reference: games app CI)
 - [ ] **Google Play Store listing** — publish brain-app to the Play Store for public download
+- [ ] **Bring Your Own Key (BYOK)** — users supply their own OpenAI / Gemini / Claude API key for classification, no brain.exe required
+- [ ] **Productize as a standalone app** — brain-app + ibeco.me as a public product anyone can use:
+  - BYOK cloud AI classification (no GPU, no brain.exe)
+  - Manual category assignment when no AI is available
+  - Full CRUD, search, notifications, widget — all working against ibeco.me alone
+  - Gradual upgrade path: start standalone → add brain.exe later for power features
 - [ ] **Cloud AI classification** — support OpenAI / Gemini / Claude API keys as an alternative to brain.exe + local GPU, so anyone can use classification without hosting their own model
 - [ ] **Standalone mode (no brain.exe)** — brain-app + ibeco.me features that work without brain.exe:
   - ibeco.me-hosted classification using a cloud AI provider
