@@ -103,20 +103,12 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   }
 
   Future<void> _classify() async {
-    if (!widget.api.hasBrainUrl) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Set Brain URL in Settings to use AI classification'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
     setState(() => _classifying = true);
     try {
       final updated = await widget.api.classifyEntry(widget.entry.id);
-      if (mounted && updated != null) {
-        // Refresh form fields from classification results
+      if (!mounted) return;
+      if (updated != null) {
+        // Direct mode: got synchronous result — refresh fields
         _titleCtrl.text = updated.title ?? _titleCtrl.text;
         _bodyCtrl.text = updated.text.isNotEmpty ? updated.text : _bodyCtrl.text;
         _dueDateCtrl.text = updated.dueDate ?? '';
@@ -129,6 +121,15 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Classified as "${updated.category}" — ${updated.title}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        // Relay mode: queued — result arrives async
+        setState(() => _classifying = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Classification requested — refresh to see results'),
             behavior: SnackBarBehavior.floating,
           ),
         );

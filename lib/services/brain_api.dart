@@ -167,18 +167,30 @@ class BrainApi {
     await updateEntry(id, {'status': 'archived'});
   }
 
-  /// Trigger AI classification on an existing entry. Direct mode only.
-  /// Returns the updated entry with category, title, tags, etc. from the AI.
+  /// Trigger AI classification on an existing entry.
+  /// - **Direct mode**: returns the updated entry immediately.
+  /// - **Relay mode**: queues the request; returns null (result arrives async via entry_updated).
   Future<HistoryEntry?> classifyEntry(String id) async {
-    if (!hasBrainUrl) return null;
+    if (hasBrainUrl) {
+      // Direct: synchronous classify + response
+      final resp = await http.post(
+        Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}/classify'),
+        headers: _headers,
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('Classify failed: ${resp.statusCode}');
+      }
+      return HistoryEntry.fromJson(jsonDecode(resp.body));
+    }
+    // Relay: queue classify request through ibeco.me
     final resp = await http.post(
-      Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}/classify'),
+      Uri.parse('$baseUrl/api/brain/entries/classify?id=${Uri.encodeComponent(id)}'),
       headers: _headers,
     );
     if (resp.statusCode != 200) {
       throw Exception('Classify failed: ${resp.statusCode}');
     }
-    return HistoryEntry.fromJson(jsonDecode(resp.body));
+    return null; // result arrives async via entry_updated
   }
 }
 
