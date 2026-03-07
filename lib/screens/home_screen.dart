@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/brain_service.dart';
 import '../services/brain_api.dart';
+import '../services/speech_service.dart';
 import '../widgets/thought_card.dart';
 import '../widgets/connection_indicator.dart';
 import 'history_screen.dart';
@@ -26,12 +27,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late BrainService _brain;
   late BrainApi _api;
+  final SpeechService _speech = SpeechService();
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
 
   BrainConnectionState _connectionState = BrainConnectionState.disconnected;
   bool _agentOnline = false;
+  bool _isListening = false;
   final List<PendingThought> _thoughts = [];
 
   @override
@@ -40,6 +43,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(() => setState(() {}));
     _initServices();
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    _speech.onResult = (text, isFinal) {
+      if (mounted) {
+        setState(() {
+          _textController.text = text;
+          _textController.selection = TextSelection.fromPosition(
+            TextPosition(offset: text.length),
+          );
+        });
+        // Auto-send on final result
+        if (isFinal && text.trim().isNotEmpty) {
+          _sendThought();
+        }
+      }
+    };
+    _speech.onListeningChanged = (listening) {
+      if (mounted) setState(() => _isListening = listening);
+    };
+    _speech.onError = (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Voice: $error'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    };
+    await _speech.init();
   }
 
   void _initServices() {
@@ -65,6 +101,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             }
           }
         });
+        // Speak back the result if it came from voice capture
+        _speech.speak(
+          '${result.category}: ${result.title}',
+        );
       }
     };
 
@@ -96,6 +136,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _brain.dispose();
+    _speech.dispose();
     _textController.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -269,7 +310,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
+                // Mic button — hold or tap to toggle
+                GestureDetector(
+                  onLongPressStart: (_) => _speech.startListening(),
+                  onLongPressEnd: (_) => _speech.stopListening(),
+                  child: IconButton(
+                    onPressed: () => _speech.toggleListening(),
+                    icon: Icon(
+                      _isListening ? Icons.mic : Icons.mic_none,
+                      color: _isListening
+                          ? Theme.of(context).colorScheme.error
+                          : null,
+                    ),
+                    tooltip: _isListening ? 'Stop listening' : 'Voice capture',
+                  ),
+                ),
+                const SizedBox(width: 4),
                 FloatingActionButton.small(
                   onPressed: _textController.text.trim().isEmpty
                       ? null
