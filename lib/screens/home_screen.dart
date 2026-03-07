@@ -8,8 +8,10 @@ import '../services/speech_service.dart';
 import '../services/notification_service.dart';
 import '../services/offline_queue.dart';
 import '../services/widget_service.dart';
+import '../services/error_log_service.dart';
 import '../widgets/thought_card.dart';
 import '../widgets/connection_indicator.dart';
+import 'create_entry_screen.dart';
 import 'edit_entry_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
@@ -52,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Offline queue
   final _offlineQueue = OfflineQueue();
   int _queueCount = 0;
+  int _wsErrorCount = 0;
 
   @override
   void initState() {
@@ -76,8 +79,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else if (uri.host == 'entry' && uri.pathSegments.isNotEmpty) {
         final entryId = uri.pathSegments.first;
         _openEntryById(entryId);
+      } else if (uri.host == 'done' && uri.pathSegments.isNotEmpty) {
+        final entryId = uri.pathSegments.first;
+        _markDoneById(entryId);
+      } else if (uri.host == 'create') {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CreateEntryScreen(api: _api),
+          ),
+        );
       }
     });
+  }
+
+  Future<void> _markDoneById(String entryId) async {
+    try {
+      final entries = await _api.getHistory(limit: 50);
+      final entry = entries.cast<HistoryEntry?>().firstWhere(
+        (e) => e!.id == entryId,
+        orElse: () => null,
+      );
+      if (entry != null) {
+        await _api.toggleDone(entry);
+        await _updateWidget();
+      }
+    } catch (_) {}
   }
 
   Future<void> _openEntryById(String entryId) async {
@@ -208,8 +234,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       brainUrl: widget.brainUrl.isNotEmpty ? widget.brainUrl : null,
     );
 
+    _brain.onError = (error) {
+      ErrorLogService().log('websocket', error);
+      _wsErrorCount++;
+      // Only show snackbar for the first connection error, not repeated reconnect noise
+      if (_wsErrorCount <= 1 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    };
+
     _brain.onStateChanged = (state) {
       if (mounted) setState(() => _connectionState = state);
+      // Reset error count when successfully connected
+      if (state == BrainConnectionState.connected) {
+        _wsErrorCount = 0;
+      }
     };
 
     _brain.onAgentPresence = (online) {
@@ -233,18 +278,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             '${result.category}: ${result.title}',
           );
         }
-      }
-    };
-
-    _brain.onError = (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
       }
     };
 

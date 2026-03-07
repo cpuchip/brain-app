@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification_service.dart';
+import '../services/error_log_service.dart';
+import 'error_log_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String initialUrl;
@@ -263,6 +265,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 },
               ),
+            const SizedBox(height: 24),
+            // Diagnostics
+            Text(
+              'Diagnostics',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            ListTile(
+              leading: const Icon(Icons.bug_report),
+              title: const Text('Error Log'),
+              subtitle: Text('${ErrorLogService().count} entries'),
+              contentPadding: EdgeInsets.zero,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ErrorLogScreen()),
+                ).then((_) => setState(() {}));
+              },
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

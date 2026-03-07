@@ -19,27 +19,48 @@
             android:layout_weight="1"
             android:text="🧠 Brain"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold" />
 
         <ImageButton
+            android:id="@+id/btn_add"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="New entry"
+            android:src="@android:drawable/ic_input_add"
+            android:tint="#BB86FC" />
+
+        <ImageButton
             android:id="@+id/btn_mic"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Voice capture"
             android:src="@android:drawable/ic_btn_speak_now"
             android:tint="#BB86FC" />
     </LinearLayout>
 
-    <!-- Entry rows -->
+    <!-- Entry 0 -->
     <LinearLayout
         android:id="@+id/entry_0"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingTop="6dp"
         android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/entry_0_check"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Mark done"
+            android:src="@android:drawable/checkbox_off_background"
+            android:tint="#9E9E9E" />
 
         <TextView
             android:id="@+id/entry_0_title"
@@ -60,13 +81,25 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <!-- Entry 1 -->
     <LinearLayout
         android:id="@+id/entry_1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingTop="4dp"
         android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/entry_1_check"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Mark done"
+            android:src="@android:drawable/checkbox_off_background"
+            android:tint="#9E9E9E" />
 
         <TextView
             android:id="@+id/entry_1_title"
@@ -87,13 +120,25 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <!-- Entry 2 -->
     <LinearLayout
         android:id="@+id/entry_2"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingTop="4dp"
         android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/entry_2_check"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Mark done"
+            android:src="@android:drawable/checkbox_off_background"
+            android:tint="#9E9E9E" />
 
         <TextView
             android:id="@+id/entry_2_title"
@@ -114,13 +159,25 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <!-- Entry 3 -->
     <LinearLayout
         android:id="@+id/entry_3"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingTop="4dp"
         android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/entry_3_check"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Mark done"
+            android:src="@android:drawable/checkbox_off_background"
+            android:tint="#9E9E9E" />
 
         <TextView
             android:id="@+id/entry_3_title"
@@ -148,7 +205,7 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:paddingTop="12dp"
-        android:text="Nothing due — you're on top of it ✨"
+        android:text="All clear ✨"
         android:textColor="#9E9E9E"
         android:textSize="12sp"
         android:visibility="visible" />

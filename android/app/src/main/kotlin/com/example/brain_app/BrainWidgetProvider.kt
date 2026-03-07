@@ -22,40 +22,59 @@ class BrainWidgetProvider : HomeWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.brain_widget)
             val count = widgetData.getInt("action_count", 0)
 
-            // Entry rows
-            val entryIds = arrayOf(
-                Triple(R.id.entry_0, R.id.entry_0_title, R.id.entry_0_due),
-                Triple(R.id.entry_1, R.id.entry_1_title, R.id.entry_1_due),
-                Triple(R.id.entry_2, R.id.entry_2_title, R.id.entry_2_due),
-                Triple(R.id.entry_3, R.id.entry_3_title, R.id.entry_3_due),
+            data class EntryRow(
+                val rowId: Int,
+                val checkId: Int,
+                val titleId: Int,
+                val dueId: Int
+            )
+
+            val entryRows = arrayOf(
+                EntryRow(R.id.entry_0, R.id.entry_0_check, R.id.entry_0_title, R.id.entry_0_due),
+                EntryRow(R.id.entry_1, R.id.entry_1_check, R.id.entry_1_title, R.id.entry_1_due),
+                EntryRow(R.id.entry_2, R.id.entry_2_check, R.id.entry_2_title, R.id.entry_2_due),
+                EntryRow(R.id.entry_3, R.id.entry_3_check, R.id.entry_3_title, R.id.entry_3_due),
             )
 
             for (i in 0 until 4) {
-                val (rowId, titleId, dueId) = entryIds[i]
+                val row = entryRows[i]
                 if (i < count) {
                     val title = widgetData.getString("entry_${i}_title", "") ?: ""
                     val due = widgetData.getString("entry_${i}_due", "") ?: ""
                     val entryId = widgetData.getString("entry_${i}_id", "") ?: ""
 
-                    views.setViewVisibility(rowId, View.VISIBLE)
-                    views.setTextViewText(titleId, title)
-                    views.setTextViewText(dueId, due)
+                    views.setViewVisibility(row.rowId, View.VISIBLE)
+                    views.setTextViewText(row.titleId, title)
+                    views.setTextViewText(row.dueId, due)
 
-                    // Tap entry to open it
                     if (entryId.isNotEmpty()) {
+                        // Tap title area → open entry for editing
                         val openIntent = Intent(context, MainActivity::class.java).apply {
                             action = "OPEN_ENTRY"
                             data = Uri.parse("brainapp://entry/$entryId")
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                         }
-                        val pendingIntent = PendingIntent.getActivity(
+                        val openPending = PendingIntent.getActivity(
                             context, i, openIntent,
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
-                        views.setOnClickPendingIntent(rowId, pendingIntent)
+                        views.setOnClickPendingIntent(row.titleId, openPending)
+                        views.setOnClickPendingIntent(row.dueId, openPending)
+
+                        // Checkbox → mark done (launches app with MARK_DONE intent)
+                        val doneIntent = Intent(context, MainActivity::class.java).apply {
+                            action = "MARK_DONE"
+                            data = Uri.parse("brainapp://done/$entryId")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
+                        val donePending = PendingIntent.getActivity(
+                            context, 200 + i, doneIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                        views.setOnClickPendingIntent(row.checkId, donePending)
                     }
                 } else {
-                    views.setViewVisibility(rowId, View.GONE)
+                    views.setViewVisibility(row.rowId, View.GONE)
                 }
             }
 
@@ -76,6 +95,18 @@ class BrainWidgetProvider : HomeWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.btn_mic, micPending)
+
+            // + button — opens app for quick create
+            val addIntent = Intent(context, MainActivity::class.java).apply {
+                action = "QUICK_CREATE"
+                data = Uri.parse("brainapp://create")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val addPending = PendingIntent.getActivity(
+                context, 101, addIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_add, addPending)
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }

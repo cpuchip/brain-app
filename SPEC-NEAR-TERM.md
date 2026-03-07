@@ -1,22 +1,118 @@
-# Brain App — Near-Term Feature Spec
+# Brain App — Near-Term Feature Spec (v2)
 
-> Implementation guide for the next wave of brain-app features.
-> Each feature is self-contained and can be built independently, though some share infrastructure.
+> Fixes, UX improvements, and new capabilities identified from real-world usage.
+> Previous near-term items (search/filter, CRUD, edit cards, archive, STT, notifications, offline queue, widget) are all complete.
 
 ---
 
-## 1. Search & Filter Entries
+## 1. Fix: Done Filter Shows All Done Items (Bug)
 
-**Goal:** Find entries fast — by text, category, or status — without scrolling through a flat list.
+**Problem:** On ibeco.me, done items of any category show as crossed-off. But in the app, the "Done" filter chip only shows actions and projects because `isDone` only checks `actionDone` for actions and `status == 'done'` for projects. Ideas, people, etc. that are marked done via `action_done: true` never appear.
 
-### Backend Support (already exists)
+**Fix:** Update `HistoryEntry.isDone` to return `actionDone ?? false` for ALL categories (not just actions/projects). The `action_done` field is the universal done flag in brain.exe.
 
-| Mode | Endpoint | Notes |
-|------|----------|-------|
-| Direct | `GET /api/search?q=X&limit=20` | Full-text on title + body |
-| Direct | `GET /api/search/semantic?q=X&category=C&limit=10` | Vector similarity |
-| Direct | `GET /api/entries?category=X&needs_review=true` | Filter by category or review flag |
-| Relay | `GET /api/brain/entries?category=X` | Category filter only |
+**Also:** On ibeco.me web, done items are shown crossed-off in their original lists. In the app, done items should also appear in their category lists (not hidden) — just visually marked as done with the crossed-off style (already implemented in `_HistoryCard`). Currently the `_filteredEntries` getter hides them when `_showDone` is false because non-actionable items can never match. The fix to `isDone` should resolve this naturally.
+
+### Changes
+- `lib/services/brain_api.dart` — `HistoryEntry.isDone`: return `actionDone ?? false` (remove category check)
+- `lib/services/brain_api.dart` — `HistoryEntry.isActionable`: return `true` always (all entries can be toggled done)
+- `lib/screens/history_screen.dart` — Verify done entries show in normal list too (with strikethrough), not only in done filter
+
+---
+
+## 2. Fix: History Screen Bottom Inset
+
+**Problem:** The list in HistoryScreen bleeds behind the Android system navigation bar (gesture bar or 3-button nav). The bottom item is partially obscured.
+
+**Fix:** Add bottom padding to the ListView that accounts for `MediaQuery.of(context).viewPadding.bottom` (or use `SafeArea`). The FAB is already above the nav bar, but the list content scrolls behind it.
+
+### Changes
+- `lib/screens/history_screen.dart` — Wrap body or add bottom padding to ListView: `padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom + 80)` (80 for FAB clearance)
+
+---
+
+## 3. Enhancement: Redesigned Home Screen Widget (Microsoft To Do-inspired)
+
+**Problem:** Current 4x2 widget is not functional enough — mic button just opens app, clicking entries goes to history, no way to complete items or create entries from widget.
+
+**Redesign goals (inspired by Microsoft To Do widget):**
+1. **Starred/important items** surfaced in widget (not just due-soon items)
+2. **Checkboxes** on actionable items to mark done directly from widget
+3. **Mic button** that opens a recording overlay — record, classify, show result inline
+4. **+ button** for quick manual entry creation (widget-inline bottom sheet / overlay)
+5. **Tap entry** → opens that specific entry for editing
+
+### Sub-tasks
+
+#### 3a. Add "starred" field to brain entries
+- Add `starred: bool` field to `HistoryEntry` model
+- Add star toggle API call (updates entry with `starred: true/false`)
+- Star toggle in history card UI (star icon button)
+- Widget shows starred items (priority over due-soon items)
+
+#### 3b. Redesign widget layout
+- Header: "🧠 Brain" title + mic button + "+" button
+- Body: up to 4 entries, each with checkbox + title + due date
+- Checkbox taps mark done via pending intent → broadcast receiver → API call
+- Empty state: "All clear ✨"
+
+#### 3c. Widget mic recording
+- Mic button intent launches app with `VOICE_CAPTURE` action
+- App opens in a compact "record" mode (bottom sheet over transparent activity?)
+- Records → classifies → shows result → option to edit or dismiss
+- **Clarification needed:** Android widget limitations mean we can't truly record from the widget itself. Best we can do is launch the app to a focused recording screen.
+
+#### 3d. Widget "+" quick create
+- "+" button intent launches app with `QUICK_CREATE` action
+- App opens CreateEntryScreen (or a compact version)
+
+#### 3e. Widget checkbox mark-done
+- Each entry row has a checkbox pending intent
+- BrainWidgetProvider receives broadcast, calls API to toggle done
+- Updates widget data after toggle
+
+### Changes
+- `lib/services/brain_api.dart` — Add `starred` field to HistoryEntry, add `toggleStar()` method
+- `lib/screens/history_screen.dart` — Star icon button on each card
+- `lib/services/widget_service.dart` — Prioritize starred items, include checkbox data
+- `android/.../BrainWidgetProvider.kt` — Redesigned layout with checkboxes, +, mic
+- `android/.../res/layout/brain_widget.xml` — New layout
+- `android/.../res/xml/brain_widget_info.xml` — Adjust size if needed
+- `lib/screens/home_screen.dart` — Handle VOICE_CAPTURE and QUICK_CREATE intents
+
+---
+
+## 4. Fix: Intermittent WebSocket Error + Error Log
+
+**Problem:** WebSocket error "Failed host lookup: 'ibeco.me'" appears intermittently even though the app works. The reconnect loop triggers when the phone's network briefly drops or switches (WiFi ↔ cellular). The error snackbar is noisy and doesn't help debugging.
+
+### 4a. Reduce WebSocket error noise
+- Don't show transient connection errors as snackbars after 2+ reconnect attempts
+- Only show persistent connection failure after N consecutive failures
+- Show a subtle indicator (the connection indicator already does this) instead of error snackbar
+
+### 4b. Error log in Settings
+- Create an `ErrorLogService` singleton that captures timestamped errors (max 100)
+- BrainService, BrainApi, OfflineQueue, NotificationService — all log errors to this service
+- Settings screen: "Error Log" button that opens a scrollable list of recent errors
+- Each entry: timestamp, source (websocket/api/queue/notification), message
+- "Copy all" and "Clear" buttons
+
+### Changes
+- `lib/services/error_log_service.dart` — New singleton, circular buffer of error entries
+- `lib/services/brain_service.dart` — Log errors, suppress transient snackbars
+- `lib/screens/home_screen.dart` — Only show snackbar for first connection failure, not repeated ones
+- `lib/screens/settings_screen.dart` — Add "Error Log" tile
+- `lib/screens/error_log_screen.dart` — New screen listing errors
+
+---
+
+## Implementation Order
+
+1. **Done filter bug** (quick fix, high impact — user can't see their done items)
+2. **History bottom inset** (quick fix, annoying UX bug)
+3. **Error log + reduce WebSocket noise** (debugging enabler)
+4. **Widget redesign** (biggest effort, most moving parts — depends on starred field)
 
 **Relay gap:** No search endpoint on the relay side today. Options:
 - **Option A (recommended):** Add `GET /api/brain/entries/search?q=X` to ibeco.me that searches `brain_entries` with SQL LIKE or FTS.

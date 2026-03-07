@@ -374,7 +374,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return RefreshIndicator(
       onRefresh: _loadHistory,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).viewPadding.bottom + 80),
         itemCount: entries.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
@@ -443,7 +443,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             },
             child: _HistoryCard(
               entry: entry,
-              onToggleDone: entry.isActionable ? () => _toggleDone(entry) : null,
+              onToggleDone: () => _toggleDone(entry),
               onTap: () => _editEntry(entry),
             ),
           );

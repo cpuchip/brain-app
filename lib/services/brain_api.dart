@@ -94,15 +94,7 @@ class BrainApi {
 
   /// Toggle done state for an entry.
   Future<void> toggleDone(HistoryEntry entry) async {
-    final updates = <String, dynamic>{};
-    if (entry.category == 'actions') {
-      updates['action_done'] = !(entry.actionDone ?? false);
-    } else if (entry.category == 'projects') {
-      updates['status'] = (entry.status == 'done') ? 'active' : 'done';
-    }
-    if (updates.isNotEmpty) {
-      await updateEntry(entry.id, updates);
-    }
+    await updateEntry(entry.id, {'action_done': !entry.isDone});
   }
 
   /// Delete an entry. Works via relay (ibeco.me) or direct (brain.exe).
@@ -228,16 +220,11 @@ class HistoryEntry {
     this.tags = const [],
   });
 
-  /// Whether this entry is "done" (action completed or project status=done).
-  bool get isDone {
-    if (category == 'actions') return actionDone ?? false;
-    if (category == 'projects') return status == 'done';
-    return false;
-  }
+  /// Whether this entry is marked done.
+  bool get isDone => actionDone ?? false;
 
-  /// Whether this entry supports done/undone toggling.
-  bool get isActionable =>
-      category == 'actions' || category == 'projects';
+  /// All entries support done/undone toggling.
+  bool get isActionable => true;
 
   factory HistoryEntry.fromJson(Map<String, dynamic> json) {
     return HistoryEntry(
