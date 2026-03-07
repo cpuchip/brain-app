@@ -125,6 +125,55 @@ class BrainApi {
       }
     }
   }
+
+  /// Create a new brain entry. Returns the created entry.
+  Future<HistoryEntry> createEntry({
+    required String title,
+    required String body,
+    String category = 'inbox',
+    String? status,
+    String? dueDate,
+    String? nextAction,
+    List<String>? tags,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': title,
+      'body': body,
+      'category': category,
+      'source': 'app',
+    };
+    if (status != null && status.isNotEmpty) payload['status'] = status;
+    if (dueDate != null && dueDate.isNotEmpty) payload['due_date'] = dueDate;
+    if (nextAction != null && nextAction.isNotEmpty) payload['next_action'] = nextAction;
+    if (tags != null && tags.isNotEmpty) payload['tags'] = tags;
+
+    if (hasBrainUrl) {
+      final resp = await http.post(
+        Uri.parse('$brainUrl/api/entries'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      );
+      if (resp.statusCode != 201 && resp.statusCode != 200) {
+        throw Exception('Create failed: ${resp.statusCode}');
+      }
+      return HistoryEntry.fromJson(jsonDecode(resp.body));
+    } else {
+      final resp = await http.post(
+        Uri.parse('$baseUrl/api/brain/entries'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      );
+      if (resp.statusCode != 201 && resp.statusCode != 200) {
+        throw Exception('Create failed: ${resp.statusCode}');
+      }
+      return HistoryEntry.fromBrainEntry(jsonDecode(resp.body));
+    }
+  }
+
+  /// Archive an entry by setting its status to "archived".
+  Future<void> archiveEntry(String id) async {
+    await updateEntry(id, {'status': 'archived'});
+  }
 }
 
 class BrainStatus {

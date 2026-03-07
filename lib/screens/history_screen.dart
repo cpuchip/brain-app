@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/brain_api.dart';
 import 'edit_entry_screen.dart';
+import 'create_entry_screen.dart';
 import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -17,10 +19,55 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String? _error;
   bool _loading = true;
 
+  // Search & filter state
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _categoryFilter;
+  bool _showArchived = false;
+  bool _showDone = false;
+  Timer? _debounce;
+
+  static const _filterCategories = [
+    'actions', 'projects', 'ideas', 'people', 'study', 'journal', 'inbox',
+  ];
+
   @override
   void initState() {
     super.initState();
     _loadHistory();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() => _searchQuery = query.toLowerCase());
+    });
+  }
+
+  List<HistoryEntry> get _filteredEntries {
+    final entries = _entries ?? [];
+    return entries.where((e) {
+      // Category filter
+      if (_categoryFilter != null && e.category != _categoryFilter) return false;
+      // Archive filter: hide archived unless showing archived
+      if (!_showArchived && e.status == 'archived') return false;
+      if (_showArchived && e.status != 'archived') return false;
+      // Done filter
+      if (_showDone && !e.isDone) return false;
+      // Text search
+      if (_searchQuery.isNotEmpty) {
+        final haystack = '${e.title ?? ''} ${e.text} ${e.tags.join(' ')} ${e.nextAction ?? ''}'.toLowerCase();
+        if (!haystack.contains(_searchQuery)) return false;
+      }
+      return true;
+    }).toList();
   }
 
   Future<void> _loadHistory() async {
@@ -108,6 +155,49 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _archiveEntry(HistoryEntry entry) async {
+    try {
+      await widget.api.archiveEntry(entry.id);
+      await _loadHistory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Archived "${entry.title ?? 'entry'}"'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () async {
+                await widget.api.updateEntry(entry.id, {'status': entry.status ?? 'active'});
+                await _loadHistory();
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Archive failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createEntry() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CreateEntryScreen(api: widget.api),
+      ),
+    );
+    if (created == true) {
+      await _loadHistory();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -127,13 +217,84 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
           IconButton(
+            icon: Icon(_showArchived ? Icons.inventory_2 : Icons.inventory_2_outlined),
+            tooltip: _showArchived ? 'Show active' : 'Show archived',
+            onPressed: () => setState(() => _showArchived = !_showArchived),
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
             onPressed: _loadHistory,
           ),
         ],
       ),
-      body: _buildBody(theme, colorScheme),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _createEntry,
+        tooltip: 'New entry',
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search entries...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+            ),
+          ),
+
+          // Filter chips
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              children: [
+                FilterChip(
+                  label: const Text('Done'),
+                  selected: _showDone,
+                  onSelected: (v) => setState(() => _showDone = v),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 6),
+                ..._filterCategories.map((cat) => Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(
+                    label: Text(cat),
+                    selected: _categoryFilter == cat,
+                    onSelected: (v) => setState(() => _categoryFilter = v ? cat : null),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                )),
+              ],
+            ),
+          ),
+
+          // Entry list
+          Expanded(child: _buildBody(theme, colorScheme)),
+        ],
+      ),
     );
   }
 
@@ -164,21 +325,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
-    final entries = _entries ?? [];
+    final entries = _filteredEntries;
     if (entries.isEmpty) {
+      final hasFilters = _searchQuery.isNotEmpty || _categoryFilter != null || _showDone || _showArchived;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.inbox_outlined, size: 64, color: colorScheme.outline),
+            Icon(
+              hasFilters ? Icons.filter_list_off : Icons.inbox_outlined,
+              size: 64,
+              color: colorScheme.outline,
+            ),
             const SizedBox(height: 12),
-            Text('No history yet',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(color: colorScheme.outline)),
+            Text(
+              hasFilters ? 'No matching entries' : 'No history yet',
+              style: theme.textTheme.titleMedium?.copyWith(color: colorScheme.outline),
+            ),
             const SizedBox(height: 4),
-            Text('Send your first thought to get started',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: colorScheme.outline)),
+            Text(
+              hasFilters ? 'Try adjusting your filters' : 'Send your first thought to get started',
+              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+            ),
+            if (hasFilters) ...[
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                onPressed: () => setState(() {
+                  _searchController.clear();
+                  _searchQuery = '';
+                  _categoryFilter = null;
+                  _showDone = false;
+                  _showArchived = false;
+                }),
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Clear filters'),
+              ),
+            ],
           ],
         ),
       );
@@ -193,11 +375,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
         itemBuilder: (context, index) {
           final entry = entries[index];
 
-          // Swipe to delete, toggle done for actionable entries
+          // Swipe to delete (left) or archive (right), toggle done for actionable
           return Dismissible(
             key: Key(entry.id),
-            direction: DismissDirection.endToStart,
+            direction: _showArchived
+                ? DismissDirection.endToStart  // archived view: only delete
+                : DismissDirection.horizontal, // normal view: both directions
             background: Container(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 20),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade700,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.archive, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Archive', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            secondaryBackground: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
               decoration: BoxDecoration(
@@ -206,7 +405,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
               child: const Icon(Icons.delete, color: Colors.white),
             ),
-            confirmDismiss: (_) async {
+            confirmDismiss: (direction) async {
+              if (direction == DismissDirection.startToEnd) {
+                // Archive: no confirmation needed (has undo)
+                return true;
+              }
+              // Delete: confirm
               return await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
@@ -225,7 +429,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ) ?? false;
             },
-            onDismissed: (_) => _deleteEntry(entry),
+            onDismissed: (direction) {
+              if (direction == DismissDirection.startToEnd) {
+                _archiveEntry(entry);
+              } else {
+                _deleteEntry(entry);
+              }
+            },
             child: _HistoryCard(
               entry: entry,
               onToggleDone: entry.isActionable ? () => _toggleDone(entry) : null,

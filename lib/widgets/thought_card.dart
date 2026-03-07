@@ -4,8 +4,9 @@ import 'package:intl/intl.dart';
 
 class ThoughtCard extends StatelessWidget {
   final PendingThought thought;
+  final VoidCallback? onEdit;
 
-  const ThoughtCard({super.key, required this.thought});
+  const ThoughtCard({super.key, required this.thought, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -20,38 +21,56 @@ class ThoughtCard extends StatelessWidget {
           ? colorScheme.surfaceContainerLow
           : colorScheme.surfaceContainerHighest,
       margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // The thought text
-            Text(
-              thought.text,
-              style: theme.textTheme.bodyMedium,
-            ),
-
-            const SizedBox(height: 8),
-
-            // Result or pending state
-            if (result != null) _buildResult(theme, colorScheme, result)
-            else if (thought.error != null)
-              _buildError(theme, colorScheme)
-            else
-              _buildPending(theme, colorScheme),
-
-            // Timestamp
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                timeFormat.format(thought.timestamp.toLocal()),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.outline,
-                ),
+      child: InkWell(
+        onTap: result != null ? onEdit : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // The thought text
+              Text(
+                thought.text,
+                style: theme.textTheme.bodyMedium,
               ),
-            ),
-          ],
+
+              const SizedBox(height: 8),
+
+              // Result or pending state
+              if (result != null) _buildResult(theme, colorScheme, result)
+              else if (thought.error != null)
+                _buildError(theme, colorScheme)
+              else
+                _buildPending(theme, colorScheme),
+
+              // Timestamp + edit
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (result != null && onEdit != null)
+                    GestureDetector(
+                      onTap: onEdit,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ),
+                  Text(
+                    timeFormat.format(thought.timestamp.toLocal()),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

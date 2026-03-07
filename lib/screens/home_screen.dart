@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/brain_service.dart';
 import '../services/brain_api.dart';
 import '../services/speech_service.dart';
 import '../widgets/thought_card.dart';
 import '../widgets/connection_indicator.dart';
+import 'edit_entry_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
@@ -39,13 +41,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isListening = false;
   final List<PendingThought> _thoughts = [];
 
+  // STT preferences
+  bool _autoSend = true;
+  bool _drivingMode = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(() => setState(() {}));
+    _loadSttPrefs();
     _initServices();
     _initSpeech();
+  }
+
+  Future<void> _loadSttPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _autoSend = prefs.getBool('stt_auto_send') ?? true;
+        _drivingMode = prefs.getBool('stt_driving_mode') ?? false;
+      });
+    }
   }
 
   Future<void> _initSpeech() async {
@@ -57,8 +74,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             TextPosition(offset: text.length),
           );
         });
-        // Auto-send on final result
-        if (isFinal && text.trim().isNotEmpty) {
+        // Auto-send on final result if enabled
+        if (isFinal && text.trim().isNotEmpty && _autoSend) {
           _sendThought();
         }
       }
@@ -107,10 +124,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             }
           }
         });
-        // Speak back the result if it came from voice capture
-        _speech.speak(
-          '${result.category}: ${result.title}',
-        );
+        // Speak back the result in driving mode
+        if (_drivingMode) {
+          _speech.speak(
+            '${result.category}: ${result.title}',
+          );
+        }
       }
     };
 
@@ -170,6 +189,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _focusNode.requestFocus();
     HapticFeedback.lightImpact();
 
+    // In driving mode, restart mic after sending
+    if (_drivingMode) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && !_isListening) {
+          _speech.startListening();
+        }
+      });
+    }
+
     // Scroll to top to show new thought
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -178,6 +206,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         curve: Curves.easeOut,
       );
     }
+  }
+
+  Future<void> _editThought(PendingThought thought) async {
+    final result = thought.result;
+    if (result == null) return;
+
+    HistoryEntry? entry;
+
+    // If we have an entry ID from the result, construct directly
+    if (result.entryId != null && result.entryId!.isNotEmpty) {
+      entry = HistoryEntry(
+        id: result.entryId!,
+        text: thought.text,
+        category: result.category,
+        title: result.title,
+        confidence: result.confidence,
+        timestamp: thought.timestamp,
+        processed: true,
+        tags: result.tags,
+      );
+    } else {
+      // Fetch recent entries and match by title + approximate timestamp
+      try {
+        final entries = await _api.getHistory(limit: 20);
+        entry = entries.cast<HistoryEntry?>().firstWhere(
+          (e) => e!.title == result.title && e.category == result.category,
+          orElse: () => null,
+        );
+      } catch (_) {
+        // Fall through to error below
+      }
+    }
+
+    if (!mounted) return;
+
+    if (entry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Entry still syncing — try again in a moment'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EditEntryScreen(api: _api, entry: entry!),
+      ),
+    );
   }
 
   @override
@@ -213,8 +292,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => SettingsScreen(
                     initialUrl: widget.url,
@@ -224,6 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
               );
+              _loadSttPrefs();
             },
           ),
         ],
@@ -268,7 +348,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     itemCount: _thoughts.length,
                     itemBuilder: (context, index) {
-                      return ThoughtCard(thought: _thoughts[index]);
+                      final thought = _thoughts[index];
+                      return ThoughtCard(
+                        thought: thought,
+                        onEdit: thought.result != null
+                            ? () => _editThought(thought)
+                            : null,
+                      );
                     },
                   ),
           ),

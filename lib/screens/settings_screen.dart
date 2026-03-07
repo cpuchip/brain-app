@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String initialUrl;
@@ -26,6 +27,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _brainUrlController;
   bool _saving = false;
   bool _obscureToken = true;
+  bool _autoSend = true;
+  bool _drivingMode = false;
 
   @override
   void initState() {
@@ -33,6 +36,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _urlController = TextEditingController(text: widget.initialUrl);
     _tokenController = TextEditingController(text: widget.initialToken);
     _brainUrlController = TextEditingController(text: widget.initialBrainUrl);
+    _loadSttPrefs();
+  }
+
+  Future<void> _loadSttPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _autoSend = prefs.getBool('stt_auto_send') ?? true;
+      _drivingMode = prefs.getBool('stt_driving_mode') ?? false;
+    });
+  }
+
+  Future<void> _saveSttPref(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
   }
 
   @override
@@ -158,6 +175,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               keyboardType: TextInputType.url,
               autocorrect: false,
+            ),
+            const SizedBox(height: 24),
+            // Voice settings
+            Text(
+              'Voice Settings',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile(
+              title: const Text('Auto-send on speech'),
+              subtitle: const Text('Automatically send when you stop talking'),
+              value: _autoSend,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (v) {
+                setState(() => _autoSend = v);
+                _saveSttPref('stt_auto_send', v);
+              },
+            ),
+            SwitchListTile(
+              title: const Text('Driving mode'),
+              subtitle: const Text('Keep mic hot after sending, always read back results'),
+              value: _drivingMode,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (v) {
+                setState(() => _drivingMode = v);
+                _saveSttPref('stt_driving_mode', v);
+                if (v && !_autoSend) {
+                  setState(() => _autoSend = true);
+                  _saveSttPref('stt_auto_send', true);
+                }
+              },
             ),
             const SizedBox(height: 24),
             SizedBox(

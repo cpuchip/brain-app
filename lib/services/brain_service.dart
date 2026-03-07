@@ -18,6 +18,7 @@ class MessageType {
 /// A classified result from the brain agent.
 class BrainResult {
   final String thoughtId;
+  final String? entryId;
   final String category;
   final String title;
   final double confidence;
@@ -27,6 +28,7 @@ class BrainResult {
 
   BrainResult({
     required this.thoughtId,
+    this.entryId,
     required this.category,
     required this.title,
     required this.confidence,
@@ -38,6 +40,7 @@ class BrainResult {
   factory BrainResult.fromJson(Map<String, dynamic> json) {
     return BrainResult(
       thoughtId: json['thought_id'] ?? '',
+      entryId: json['entry_id']?.toString(),
       category: json['category'] ?? 'inbox',
       title: json['title'] ?? '',
       confidence: (json['confidence'] ?? 0.0).toDouble(),
