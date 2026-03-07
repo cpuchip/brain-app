@@ -46,6 +46,56 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _toggleDone(HistoryEntry entry) async {
+    try {
+      await widget.api.toggleDone(entry);
+      await _loadHistory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(entry.isDone ? 'Reopened' : 'Done!'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteEntry(HistoryEntry entry) async {
+    try {
+      await widget.api.deleteEntry(entry.id);
+      await _loadHistory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deleted "${entry.title ?? 'entry'}"'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Delete failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -53,8 +103,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('History'),
+        title: Text(widget.api.hasBrainUrl ? 'Brain' : 'History'),
         actions: [
+          if (widget.api.hasBrainUrl)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Chip(
+                avatar: Icon(Icons.wifi, size: 14, color: Colors.green.shade600),
+                label: const Text('Direct'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -120,7 +179,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
         itemCount: entries.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
-          return _HistoryCard(entry: entries[index]);
+          final entry = entries[index];
+          final canManage = widget.api.hasBrainUrl;
+
+          if (!canManage) {
+            return _HistoryCard(entry: entry);
+          }
+
+          // With brain URL: swipe to delete
+          return Dismissible(
+            key: Key(entry.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              decoration: BoxDecoration(
+                color: Colors.red.shade700,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            confirmDismiss: (_) async {
+              return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Delete entry?'),
+                  content: Text(entry.title ?? entry.text),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              ) ?? false;
+            },
+            onDismissed: (_) => _deleteEntry(entry),
+            child: _HistoryCard(
+              entry: entry,
+              onToggleDone: entry.isActionable ? () => _toggleDone(entry) : null,
+            ),
+          );
         },
       ),
     );
@@ -129,8 +232,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
 class _HistoryCard extends StatelessWidget {
   final HistoryEntry entry;
+  final VoidCallback? onToggleDone;
 
-  const _HistoryCard({required this.entry});
+  const _HistoryCard({required this.entry, this.onToggleDone});
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +252,7 @@ class _HistoryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: category badge + timestamp
+            // Header: category badge + status + timestamp
             Row(
               children: [
                 if (entry.category != null) ...[
@@ -169,6 +273,23 @@ class _HistoryCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
+                if (entry.status != null && entry.status!.isNotEmpty) ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      entry.status!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.amber.shade700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 if (entry.confidence != null)
                   Text(
                     '${(entry.confidence! * 100).toInt()}%',
@@ -177,6 +298,16 @@ class _HistoryCard extends StatelessWidget {
                     ),
                   ),
                 const Spacer(),
+                if (entry.dueDate != null && entry.dueDate!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      '📅 ${entry.dueDate}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.amber.shade700,
+                      ),
+                    ),
+                  ),
                 Text(
                   dateFormat.format(entry.timestamp.toLocal()),
                   style: theme.textTheme.labelSmall?.copyWith(
@@ -186,12 +317,43 @@ class _HistoryCard extends StatelessWidget {
               ],
             ),
 
-            // Title
+            // Title with done indicator
             if (entry.title != null) ...[
               const SizedBox(height: 6),
-              Text(
-                entry.title!,
-                style: theme.textTheme.titleSmall,
+              Row(
+                children: [
+                  if (onToggleDone != null)
+                    GestureDetector(
+                      onTap: onToggleDone,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: entry.isDone ? Colors.green.shade600 : Colors.transparent,
+                          border: Border.all(
+                            color: entry.isDone
+                                ? Colors.green.shade600
+                                : colorScheme.outline,
+                            width: 2,
+                          ),
+                        ),
+                        child: entry.isDone
+                            ? const Icon(Icons.check, size: 14, color: Colors.white)
+                            : null,
+                      ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      entry.title!,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        decoration: entry.isDone ? TextDecoration.lineThrough : null,
+                        color: entry.isDone ? colorScheme.outline : null,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
 
@@ -230,12 +392,19 @@ class _HistoryCard extends StatelessWidget {
 
   Color _categoryColor(String? category, ColorScheme colorScheme) {
     return switch (category) {
+      'actions' => Colors.green.shade600,
+      'projects' => Colors.blue.shade600,
+      'ideas' => Colors.purple.shade500,
+      'people' => Colors.teal.shade600,
+      'study' => Colors.amber.shade700,
+      'journal' => Colors.pink.shade400,
+      'inbox' => colorScheme.outline,
+      // Legacy categories from relay
       'insight' => Colors.amber.shade700,
       'question' => Colors.blue.shade600,
       'action' => Colors.green.shade600,
       'reflection' => Colors.purple.shade500,
       'connection' => Colors.teal.shade600,
-      'inbox' => colorScheme.outline,
       _ => colorScheme.outline,
     };
   }

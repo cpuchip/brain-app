@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 class SettingsScreen extends StatefulWidget {
   final String initialUrl;
   final String initialToken;
-  final Future<void> Function(String url, String token) onSaved;
+  final String initialBrainUrl;
+  final Future<void> Function(String url, String token, String brainUrl) onSaved;
   final bool firstRun;
 
   const SettingsScreen({
     super.key,
     required this.initialUrl,
     required this.initialToken,
+    this.initialBrainUrl = '',
     required this.onSaved,
     this.firstRun = false,
   });
@@ -21,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _urlController;
   late TextEditingController _tokenController;
+  late TextEditingController _brainUrlController;
   bool _saving = false;
   bool _obscureToken = true;
 
@@ -29,18 +32,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _urlController = TextEditingController(text: widget.initialUrl);
     _tokenController = TextEditingController(text: widget.initialToken);
+    _brainUrlController = TextEditingController(text: widget.initialBrainUrl);
   }
 
   @override
   void dispose() {
     _urlController.dispose();
     _tokenController.dispose();
+    _brainUrlController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final url = _urlController.text.trim();
     final token = _tokenController.text.trim();
+    final brainUrl = _brainUrlController.text.trim();
 
     if (url.isEmpty || token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -50,7 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     setState(() => _saving = true);
-    await widget.onSaved(url, token);
+    await widget.onSaved(url, token, brainUrl);
     setState(() => _saving = false);
 
     if (mounted && !widget.firstRun) {
@@ -126,6 +132,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               obscureText: _obscureToken,
+              autocorrect: false,
+            ),
+            const SizedBox(height: 24),
+            // Brain URL (optional) — direct connection to local brain.exe
+            Text(
+              'Local Brain (optional)',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Connect directly to brain.exe on your network for real-time data and full management.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _brainUrlController,
+              decoration: const InputDecoration(
+                labelText: 'Brain URL',
+                hintText: 'http://192.168.1.x:8445',
+                prefixIcon: Icon(Icons.psychology),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
               autocorrect: false,
             ),
             const SizedBox(height: 24),

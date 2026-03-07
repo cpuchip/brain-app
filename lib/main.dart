@@ -51,6 +51,7 @@ class _AppShellState extends State<AppShell> {
   bool _loading = true;
   String? _url;
   String? _token;
+  String _brainUrl = '';
 
   @override
   void initState() {
@@ -65,17 +66,20 @@ class _AppShellState extends State<AppShell> {
           dotenv.env['IBECOME_URL'] ??
           'https://ibeco.me';
       _token = prefs.getString('brain_token') ?? '';
+      _brainUrl = prefs.getString('brain_direct_url') ?? '';
       _loading = false;
     });
   }
 
-  Future<void> _onSettingsSaved(String url, String token) async {
+  Future<void> _onSettingsSaved(String url, String token, String brainUrl) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('brain_url', url);
     await prefs.setString('brain_token', token);
+    await prefs.setString('brain_direct_url', brainUrl);
     setState(() {
       _url = url;
       _token = token;
+      _brainUrl = brainUrl;
     });
   }
 
@@ -91,6 +95,7 @@ class _AppShellState extends State<AppShell> {
       return SettingsScreen(
         initialUrl: _url ?? '',
         initialToken: _token ?? '',
+        initialBrainUrl: _brainUrl,
         onSaved: _onSettingsSaved,
         firstRun: true,
       );
@@ -99,6 +104,7 @@ class _AppShellState extends State<AppShell> {
     return HomeScreen(
       url: _url!,
       token: _token!,
+      brainUrl: _brainUrl,
       onSettingsChanged: _onSettingsSaved,
     );
   }

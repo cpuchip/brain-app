@@ -11,12 +11,14 @@ import 'settings_screen.dart';
 class HomeScreen extends StatefulWidget {
   final String url;
   final String token;
-  final Future<void> Function(String url, String token) onSettingsChanged;
+  final String brainUrl;
+  final Future<void> Function(String url, String token, String brainUrl) onSettingsChanged;
 
   const HomeScreen({
     super.key,
     required this.url,
     required this.token,
+    this.brainUrl = '',
     required this.onSettingsChanged,
   });
 
@@ -80,7 +82,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _initServices() {
     _brain = BrainService(baseUrl: widget.url, token: widget.token);
-    _api = BrainApi(baseUrl: widget.url, token: widget.token);
+    _api = BrainApi(
+      baseUrl: widget.url,
+      token: widget.token,
+      brainUrl: widget.brainUrl.isNotEmpty ? widget.brainUrl : null,
+    );
 
     _brain.onStateChanged = (state) {
       if (mounted) setState(() => _connectionState = state);
@@ -213,6 +219,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   builder: (_) => SettingsScreen(
                     initialUrl: widget.url,
                     initialToken: widget.token,
+                    initialBrainUrl: widget.brainUrl,
                     onSaved: widget.onSettingsChanged,
                   ),
                 ),
