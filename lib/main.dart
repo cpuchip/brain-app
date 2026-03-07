@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/quick_add_screen.dart';
 import 'services/notification_service.dart';
 import 'services/offline_queue.dart';
+import 'services/brain_api.dart';
 
 /// Global navigator key for notification tap navigation.
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -47,6 +50,56 @@ class BrainApp extends StatelessWidget {
       ),
       themeMode: ThemeMode.system,
       home: const AppShell(),
+    );
+  }
+}
+
+/// Second entrypoint for the transparent QuickAddActivity.
+/// Runs in a separate Flutter engine — loads its own credentials.
+@pragma('vm:entry-point')
+void quickAddMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Read mode from the platform (defaults to 'text')
+  const channel = MethodChannel('com.example.brain_app/quick_add');
+  String mode = 'text';
+  try {
+    mode = await channel.invokeMethod<String>('getMode') ?? 'text';
+  } catch (_) {}
+
+  // Load credentials from SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+  final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+  final token = prefs.getString('brain_token') ?? '';
+  final brainUrl = prefs.getString('brain_direct_url') ?? '';
+
+  final api = BrainApi(baseUrl: url, token: token, brainUrl: brainUrl);
+
+  runApp(QuickAddApp(mode: mode, api: api));
+}
+
+class QuickAddApp extends StatelessWidget {
+  final String mode;
+  final BrainApi api;
+
+  const QuickAddApp({super.key, required this.mode, required this.api});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorSchemeSeed: const Color(0xFF6750A4),
+        useMaterial3: true,
+        brightness: Brightness.light,
+      ),
+      darkTheme: ThemeData(
+        colorSchemeSeed: const Color(0xFF6750A4),
+        useMaterial3: true,
+        brightness: Brightness.dark,
+      ),
+      themeMode: ThemeMode.system,
+      home: QuickAddScreen(mode: mode, api: api),
     );
   }
 }

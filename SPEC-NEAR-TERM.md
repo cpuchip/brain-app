@@ -107,12 +107,181 @@
 
 ---
 
+---
+
+## 5. Widget Platform Capabilities (Android 12+ / API 31+)
+
+> Research from official Android docs + real-world testing. These are the building blocks for future widget improvements. Android 16 (user's device) supports all of these.
+
+### 5a. Responsive Layouts (Size Buckets)
+
+Android 12+ supports `targetCellWidth`/`targetCellHeight` in `appwidget-provider` XML, plus responsive layout mapping where the Kotlin provider sends a `Map<SizeF, RemoteViews>` — the launcher automatically picks the right layout at each size. No app wakeup needed for resize.
+
+**Current state:** Our `brain_widget_info.xml` only has `minWidth="250dp"` / `minHeight="110dp"`. No `targetCellWidth`/`targetCellHeight`, no min-resize constraints, no responsive layout map.
+
+**Plan:** Define multiple layouts:
+- **2x2 compact** — Title + mic button + big "+ New thought" tap target. No entry list (not enough room). Ideal for quick capture.
+- **4x2 standard** — Current layout: header + 4 entries with checkboxes + mic + "+"
+- **4x4 expanded** (future) — Entries + mini-form inline?
+
+Widget info XML would become:
+```xml
+<appwidget-provider
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="530dp"
+    android:maxResizeHeight="450dp"
+    android:resizeMode="horizontal|vertical"
+    .../>
+```
+
+Kotlin provider uses:
+```kotlin
+val smallView = RemoteViews(context.packageName, R.layout.brain_widget_compact)
+val standardView = RemoteViews(context.packageName, R.layout.brain_widget)
+val viewMapping = mapOf(
+    SizeF(110f, 110f) to smallView,   // 2x2
+    SizeF(250f, 110f) to standardView // 4x2
+)
+appWidgetManager.updateAppWidget(widgetId, RemoteViews(viewMapping))
+```
+
+### 5b. Smoother Transitions
+
+Setting `android:id="@android:id/background"` on the root layout element lets the launcher animate widget→app transitions (zoom/fade from widget surface into the full app). We're missing this — free win, one line.
+
+**Caveat:** The transition only works when launching via `PendingIntent.getActivity()` directly. If you use a broadcast trampoline (BroadcastReceiver → startActivity), the animation is lost. Our current PendingIntents go straight to MainActivity, so we're good.
+
+### 5c. Dynamic Colors (Material You)
+
+Using `@android:style/Theme.DeviceDefault.DayNight` or Material 3's `Theme.Material3.DynamicColors.DayNight` on the root layout makes the widget colors adapt to the user's wallpaper-extracted palette. Our widget currently uses hardcoded hex colors (#1E1E2E, #BB86FC, etc.).
+
+**Migration path:** Replace hardcoded colors with `?attr/colorPrimaryContainer`, `?attr/colorOnSurface`, `?attr/colorPrimary`, etc. Provide fallback in `values/styles.xml` for pre-12 devices (not relevant for us, but good practice).
+
+### 5d. Compound Buttons (Android 12+)
+
+`RemoteViews` supports native `CheckBox`, `Switch`, and `RadioButton` since API 31. We're using `ImageButton` to fake checkboxes. Could use actual `CheckBox` views with `RemoteViews.setCompoundButtonChecked()` — launcher handles visual state automatically, including animations.
+
+### 5e. Widget Description & Preview
+
+Adding `android:description="@string/widget_description"` to widget info XML shows a description in the widget picker. We should add this.
+
+### 5f. Voice Support (Google Assistant Integration)
+
+The "voice support" in the Android docs refers to **App Actions / BIIs** (Built-in Intents) — you configure your widget to respond to Google Assistant voice commands like "Hey Google, add a thought to Brain." This is NOT in-widget recording — it's Assistant surface integration.
+
+**What Samsung Internet / Google Search bar widgets do:** They don't record audio in the widget. The mic icon sends a PendingIntent that launches an Activity with `ACTION_RECOGNIZE_SPEECH`. The widget is just a styled button.
+
+**What's NOT possible from a widget:**
+- No audio recording, camera, or long-running processes
+- No custom animations (no Lottie, no AnimationDrawable)
+- No typed text input (no EditText — removed from RemoteViews)
+- Only these views: TextView, ImageView, Button, CheckBox, ProgressBar, ListView/GridView/StackView, ViewFlipper
+- Only gestures: touch and vertical swipe (not horizontal — that's home screen navigation)
+
+### 5g. Update Strategies
+
+Three update types, in order of cost:
+1. **Partial update** (`partiallyUpdateAppWidget`) — merges new RemoteViews into existing. Cheapest.
+2. **Full update** (`updateAppWidget`) — replaces entire RemoteViews. Current approach.
+3. **Collection data refresh** (`notifyAppWidgetViewDataChanged`) — for ListView/GridView widgets.
+
+Update triggers:
+- `updatePeriodMillis` in widget info (min 30 min, currently 30 min)
+- Direct call from app via `AppWidgetManager.updateAppWidget()`
+- WorkManager for background updates when app isn't running
+- Broadcast receiver for specific events
+
+---
+
+## 6. Transparent Quick-Add Activity (Microsoft To Do Pattern)
+
+> The "mini input" overlay seen in Microsoft To Do's widget: tap +, dark scrim over home screen, bottom-anchored input card with keyboard, tap scrim to dismiss.
+
+### What It Is
+
+This is **not** a widget feature. It's a separate Android **Activity** with a translucent theme:
+1. Widget's + button sends a `PendingIntent` → launches a transparent Activity (not the main app)
+2. Activity theme: `windowIsTranslucent=true`, `windowBackground=@android:color/transparent`
+3. Layout: full-screen `FrameLayout` with:
+   - **Scrim layer** — Dark semi-transparent View filling the screen (`onClick → finish()`)
+   - **Bottom card** — Anchored to bottom, contains text input + quick options
+4. `android:windowSoftInputMode="adjustResize"` — keyboard pushes the card up
+5. Submit or tap outside → `finish()` → back to home screen instantly
+
+### Implementation Options for Flutter
+
+**Option A: Native Kotlin Activity (best UX)**
+- Create `QuickAddActivity` in Kotlin with transparent theme
+- Layout: scrim + bottom card + EditText + category chips + submit button
+- Submit → save to SharedPreferences queue, trigger widget refresh
+- Pro: True home-screen transparency, instant launch, no Flutter engine overhead
+- Con: Duplicates some logic in Kotlin, can't reuse Flutter services directly
+
+**Option B: Second Flutter Activity with transparent background (recommended)**
+- Create `QuickAddActivity extends FlutterActivity` in Kotlin
+- Override `getBackgroundMode()` → `FlutterActivityLaunchConfigs.BackgroundMode.transparent`
+- Register in AndroidManifest with transparent theme + `initialRoute="/quick-add"`
+- Flutter route `/quick-add`: transparent Scaffold + animated bottom sheet + text field
+- On submit: create entry via API → `SystemNavigator.pop()`
+- Pro: True transparency AND Flutter code, reuses BrainApi service
+- Con: Second Flutter engine is heavy (~200ms cold start), noticeable on first launch
+
+**Option C: Main Activity with overlay screen (simplest)**
+- Widget + button → PendingIntent → launches MainActivity with `QUICK_CREATE` intent
+- Flutter detects intent, shows fullscreen dark overlay with bottom sheet
+- NOT truly transparent (can't see home screen through the Flutter surface)
+- On submit → create entry → `SystemNavigator.pop()`
+- Pro: No extra Activities, all existing Flutter infrastructure
+- Con: Brief splash screen / white flash on launch, not transparent
+
+### Recommendation
+
+**Start with Option C** (already partially implemented — QUICK_CREATE intent handler exists). Make the quick-add screen feel lightweight:
+- Dark translucent background fill
+- Bottom sheet with text field, category dropdown, send button
+- Auto-focus keyboard immediately
+- On send: create entry → update widget → pop back to home screen
+- On back/dismiss: just pop
+
+This gives 80% of the Microsoft To Do UX without the complexity of a second Activity. If the launch lag bothers you, upgrade to **Option A** later (native Kotlin quick-add Activity with transparent theme).
+
+### Quick-Add Screen Design
+
+```
+┌─────────────────────────────────┐
+│                                 │  ← Dark scrim (tap to dismiss)
+│                                 │
+│                                 │
+│                                 │
+│  ┌───────────────────────────┐  │
+│  │  🧠 Quick Thought         │  │
+│  │  ┌─────────────────────┐  │  │
+│  │  │ What's on your mind? │  │  │  ← Auto-focused text field
+│  │  └─────────────────────┘  │  │
+│  │  💬inbox  📅due  🏷️tags  ↑│  │  ← Quick options + send
+│  └───────────────────────────┘  │
+│  ┌───────────────────────────┐  │
+│  │       ⌨️ Keyboard          │  │
+│  └───────────────────────────┘  │
+└─────────────────────────────────┘
+```
+
+---
+
 ## Implementation Order
 
-1. **Done filter bug** (quick fix, high impact — user can't see their done items)
-2. **History bottom inset** (quick fix, annoying UX bug)
-3. **Error log + reduce WebSocket noise** (debugging enabler)
-4. **Widget redesign** (biggest effort, most moving parts — depends on starred field)
+1. ~~**Done filter bug**~~ ✅ (quick fix, high impact — user can't see their done items)
+2. ~~**History bottom inset**~~ ✅ (quick fix, annoying UX bug)
+3. ~~**Error log + reduce WebSocket noise**~~ ✅ (debugging enabler)
+4. ~~**Widget redesign**~~ ✅ (checkboxes, +, mic intents wired up)
+5. **Widget responsive sizing** (2x2 compact + 4x2 standard layouts)
+6. **Quick-add overlay** (transparent quick-add screen from widget + button)
+7. **Widget polish** (smooth transitions, dynamic colors, real checkboxes, description)
 
 **Relay gap:** No search endpoint on the relay side today. Options:
 - **Option A (recommended):** Add `GET /api/brain/entries/search?q=X` to ibeco.me that searches `brain_entries` with SQL LIKE or FTS.

@@ -84,10 +84,9 @@ class BrainWidgetProvider : HomeWidgetProvider() {
                 if (count > 0) View.GONE else View.VISIBLE
             )
 
-            // Mic button — opens app for voice capture
-            val micIntent = Intent(context, MainActivity::class.java).apply {
-                action = "VOICE_CAPTURE"
-                data = Uri.parse("brainapp://voice")
+            // Mic button — launches transparent quick-add in voice mode
+            val micIntent = Intent(context, QuickAddActivity::class.java).apply {
+                data = Uri.parse("brainapp://quick-add?mode=voice")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val micPending = PendingIntent.getActivity(
@@ -96,10 +95,9 @@ class BrainWidgetProvider : HomeWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.btn_mic, micPending)
 
-            // + button — opens app for quick create
-            val addIntent = Intent(context, MainActivity::class.java).apply {
-                action = "QUICK_CREATE"
-                data = Uri.parse("brainapp://create")
+            // + button — launches transparent quick-add in text mode
+            val addIntent = Intent(context, QuickAddActivity::class.java).apply {
+                data = Uri.parse("brainapp://quick-add?mode=text")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val addPending = PendingIntent.getActivity(
