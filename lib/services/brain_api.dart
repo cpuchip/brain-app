@@ -1,17 +1,17 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// REST client for the brain API (status, history, CRUD).
+/// REST client for the brain API (status, entries, CRUD).
 ///
 /// Supports two modes:
-/// - **Relay mode** (baseUrl = ibeco.me): status + history from relay queue, no CRUD
-/// - **Direct mode** (baseUrl = brain.exe LAN address): real SQLite data + full CRUD
+/// - **Relay mode** (baseUrl = ibeco.me): entries from synced cache, CRUD proxied through relay
+/// - **Direct mode** (brainUrl = brain.exe LAN): real SQLite data + local CRUD
 class BrainApi {
   final String baseUrl;
   final String token;
 
-  /// Optional direct URL to brain.exe for real data + CRUD.
-  /// When set, history/status/CRUD go here instead of [baseUrl].
+  /// Optional direct URL to brain.exe for LAN access.
+  /// When set, status/entries/CRUD go here instead of [baseUrl].
   final String? brainUrl;
 
   BrainApi({required this.baseUrl, required this.token, this.brainUrl});
@@ -39,36 +39,61 @@ class BrainApi {
     return BrainStatus.fromJson(jsonDecode(resp.body));
   }
 
-  /// Get recent thought history.
-  Future<List<HistoryEntry>> getHistory({int limit = 20}) async {
+  /// Get brain entries. Uses /api/brain/entries (synced cache) on relay,
+  /// or /api/brain/history on direct brain.exe.
+  Future<List<HistoryEntry>> getHistory({int limit = 50}) async {
+    if (hasBrainUrl) {
+      // Direct mode: use brain.exe history endpoint
+      final resp = await http.get(
+        Uri.parse('$brainUrl/api/brain/history?limit=$limit'),
+        headers: _headers,
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('History request failed: ${resp.statusCode}');
+      }
+      final data = jsonDecode(resp.body);
+      final items = data['messages'] as List? ?? [];
+      return items.map((e) => HistoryEntry.fromJson(e)).toList();
+    }
+
+    // Relay mode: use synced brain_entries cache
     final resp = await http.get(
-      Uri.parse('$_dataUrl/api/brain/history?limit=$limit'),
+      Uri.parse('$baseUrl/api/brain/entries'),
       headers: _headers,
     );
     if (resp.statusCode != 200) {
-      throw Exception('History request failed: ${resp.statusCode}');
+      throw Exception('Entries request failed: ${resp.statusCode}');
     }
     final data = jsonDecode(resp.body);
-    final items = data['messages'] as List? ?? [];
-    return items.map((e) => HistoryEntry.fromJson(e)).toList();
+    final items = data['entries'] as List? ?? [];
+    return items.map((e) => HistoryEntry.fromBrainEntry(e)).toList();
   }
 
-  /// Update an entry (requires direct brain.exe connection).
+  /// Update an entry. Works via relay (ibeco.me) or direct (brain.exe).
   Future<void> updateEntry(String id, Map<String, dynamic> updates) async {
-    if (!hasBrainUrl) throw Exception('Brain URL not configured');
-    final resp = await http.put(
-      Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
-      headers: _headers,
-      body: jsonEncode(updates),
-    );
-    if (resp.statusCode != 200) {
-      throw Exception('Update failed: ${resp.statusCode}');
+    if (hasBrainUrl) {
+      final resp = await http.put(
+        Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
+        headers: _headers,
+        body: jsonEncode(updates),
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('Update failed: ${resp.statusCode}');
+      }
+    } else {
+      final resp = await http.put(
+        Uri.parse('$baseUrl/api/brain/entries?id=${Uri.encodeComponent(id)}'),
+        headers: _headers,
+        body: jsonEncode(updates),
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('Update failed: ${resp.statusCode}');
+      }
     }
   }
 
-  /// Toggle done state for an entry (requires direct brain.exe connection).
+  /// Toggle done state for an entry.
   Future<void> toggleDone(HistoryEntry entry) async {
-    if (!hasBrainUrl) throw Exception('Brain URL not configured');
     final updates = <String, dynamic>{};
     if (entry.category == 'actions') {
       updates['action_done'] = !(entry.actionDone ?? false);
@@ -80,15 +105,24 @@ class BrainApi {
     }
   }
 
-  /// Delete an entry (requires direct brain.exe connection).
+  /// Delete an entry. Works via relay (ibeco.me) or direct (brain.exe).
   Future<void> deleteEntry(String id) async {
-    if (!hasBrainUrl) throw Exception('Brain URL not configured');
-    final resp = await http.delete(
-      Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
-      headers: _headers,
-    );
-    if (resp.statusCode != 204 && resp.statusCode != 200) {
-      throw Exception('Delete failed: ${resp.statusCode}');
+    if (hasBrainUrl) {
+      final resp = await http.delete(
+        Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
+        headers: _headers,
+      );
+      if (resp.statusCode != 204 && resp.statusCode != 200) {
+        throw Exception('Delete failed: ${resp.statusCode}');
+      }
+    } else {
+      final resp = await http.delete(
+        Uri.parse('$baseUrl/api/brain/entries?id=${Uri.encodeComponent(id)}'),
+        headers: _headers,
+      );
+      if (resp.statusCode != 200 && resp.statusCode != 204) {
+        throw Exception('Delete failed: ${resp.statusCode}');
+      }
     }
   }
 }
@@ -161,6 +195,22 @@ class HistoryEntry {
       confidence: json['confidence']?.toDouble(),
       timestamp: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       processed: json['processed'] ?? false,
+      actionDone: json['action_done'],
+      status: json['status'],
+      dueDate: json['due_date'],
+    );
+  }
+
+  /// Parse from the /api/brain/entries BrainEntry format.
+  factory HistoryEntry.fromBrainEntry(Map<String, dynamic> json) {
+    return HistoryEntry(
+      id: json['id']?.toString() ?? '',
+      text: json['body'] ?? '',
+      category: json['category'],
+      title: json['title'],
+      confidence: null,
+      timestamp: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      processed: true,
       actionDone: json['action_done'],
       status: json['status'],
       dueDate: json['due_date'],

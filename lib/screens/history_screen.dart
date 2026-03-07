@@ -103,7 +103,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.api.hasBrainUrl ? 'Brain' : 'History'),
+        title: const Text('Brain'),
         actions: [
           if (widget.api.hasBrainUrl)
             Padding(
@@ -180,13 +180,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final entry = entries[index];
-          final canManage = widget.api.hasBrainUrl;
 
-          if (!canManage) {
-            return _HistoryCard(entry: entry);
-          }
-
-          // With brain URL: swipe to delete
+          // Swipe to delete, toggle done for actionable entries
           return Dismissible(
             key: Key(entry.id),
             direction: DismissDirection.endToStart,

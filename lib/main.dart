@@ -61,10 +61,13 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _loadCredentials() async {
     final prefs = await SharedPreferences.getInstance();
+    // dotenv.env throws NotInitializedError if .env failed to load (e.g. web)
+    String? envUrl;
+    try {
+      envUrl = dotenv.env['IBECOME_URL'];
+    } catch (_) {}
     setState(() {
-      _url = prefs.getString('brain_url') ??
-          dotenv.env['IBECOME_URL'] ??
-          'https://ibeco.me';
+      _url = prefs.getString('brain_url') ?? envUrl ?? 'https://ibeco.me';
       _token = prefs.getString('brain_token') ?? '';
       _brainUrl = prefs.getString('brain_direct_url') ?? '';
       _loading = false;
