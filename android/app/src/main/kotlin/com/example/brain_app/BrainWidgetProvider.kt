@@ -21,13 +21,15 @@ class BrainWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences
     ) {
         appWidgetIds.forEach { widgetId ->
-            // Build both layouts
+            // Build all layouts
             val standardView = buildStandardView(context, widgetData)
             val compactView = buildCompactView(context)
+            val miniView = buildMiniView(context)
 
             // Responsive layout map: launcher picks layout based on widget size
             val viewMapping = mapOf(
-                SizeF(110f, 110f) to compactView,   // 2x2
+                SizeF(110f, 50f) to miniView,        // 2x1
+                SizeF(110f, 110f) to compactView,    // 2x2
                 SizeF(250f, 110f) to standardView    // 4x2+
             )
             appWidgetManager.updateAppWidget(widgetId, RemoteViews(viewMapping))
@@ -36,6 +38,34 @@ class BrainWidgetProvider : HomeWidgetProvider() {
 
     private fun buildCompactView(context: Context): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.brain_widget_compact)
+
+        // + button → text mode quick-add
+        val addIntent = Intent(context, QuickAddActivity::class.java).apply {
+            data = Uri.parse("brainapp://quick-add?mode=text")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val addPending = PendingIntent.getActivity(
+            context, 101, addIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.btn_add, addPending)
+
+        // Mic button → voice mode quick-add
+        val micIntent = Intent(context, QuickAddActivity::class.java).apply {
+            data = Uri.parse("brainapp://quick-add?mode=voice")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val micPending = PendingIntent.getActivity(
+            context, 100, micIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.btn_mic, micPending)
+
+        return views
+    }
+
+    private fun buildMiniView(context: Context): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.brain_widget_mini)
 
         // + button → text mode quick-add
         val addIntent = Intent(context, QuickAddActivity::class.java).apply {

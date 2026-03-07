@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2x1 ultra-compact layout: brain icon + mic + add in a single row -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="6dp">
+
+    <!-- Brain icon -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🧠"
+        android:textSize="20sp"
+        android:layout_marginEnd="8dp" />
+
+    <!-- + button (text mode quick-add) -->
+    <ImageButton
+        android:id="@+id/btn_add"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="New entry"
+        android:src="@android:drawable/ic_input_add"
+        android:scaleType="centerInside"
+        android:tint="#BB86FC" />
+
+    <!-- Mic button (voice mode quick-add) -->
+    <ImageButton
+        android:id="@+id/btn_mic"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="Voice capture"
+        android:src="@android:drawable/ic_btn_speak_now"
+        android:scaleType="centerInside"
+        android:tint="#BB86FC" />
+</LinearLayout>

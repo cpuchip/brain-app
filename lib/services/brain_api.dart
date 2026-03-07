@@ -166,6 +166,20 @@ class BrainApi {
   Future<void> archiveEntry(String id) async {
     await updateEntry(id, {'status': 'archived'});
   }
+
+  /// Trigger AI classification on an existing entry. Direct mode only.
+  /// Returns the updated entry with category, title, tags, etc. from the AI.
+  Future<HistoryEntry?> classifyEntry(String id) async {
+    if (!hasBrainUrl) return null;
+    final resp = await http.post(
+      Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}/classify'),
+      headers: _headers,
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Classify failed: ${resp.statusCode}');
+    }
+    return HistoryEntry.fromJson(jsonDecode(resp.body));
+  }
 }
 
 class BrainStatus {

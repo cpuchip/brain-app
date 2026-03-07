@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:home_widget/home_widget.dart';
 import '../services/brain_api.dart';
 import '../services/speech_service.dart';
 import '../services/widget_service.dart';
@@ -92,11 +91,15 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
 
     setState(() => _sending = true);
     try {
-      await widget.api.createEntry(
+      final entry = await widget.api.createEntry(
         title: text,
         body: '',
         category: _category,
       );
+      // Fire-and-forget: trigger AI classification in direct mode
+      if (widget.api.hasBrainUrl) {
+        widget.api.classifyEntry(entry.id).catchError((_) => null);
+      }
       // Refresh widget data so the new entry appears
       try {
         final entries = await widget.api.getHistory(limit: 50);

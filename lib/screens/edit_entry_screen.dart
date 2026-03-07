@@ -23,6 +23,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
 
   bool _saving = false;
   bool _dirty = false;
+  bool _classifying = false;
 
   static const _categories = [
     'inbox',
@@ -101,6 +102,41 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
     }
   }
 
+  Future<void> _classify() async {
+    setState(() => _classifying = true);
+    try {
+      final updated = await widget.api.classifyEntry(widget.entry.id);
+      if (mounted && updated != null) {
+        // Refresh form fields from classification results
+        _titleCtrl.text = updated.title ?? _titleCtrl.text;
+        _bodyCtrl.text = updated.text.isNotEmpty ? updated.text : _bodyCtrl.text;
+        _dueDateCtrl.text = updated.dueDate ?? '';
+        _nextActionCtrl.text = updated.nextAction ?? '';
+        _tagsCtrl.text = updated.tags.join(', ');
+        setState(() {
+          _category = updated.category ?? _category;
+          _classifying = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Classified as "${updated.category}" — ${updated.title}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _classifying = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Classify failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickDate() async {
     final initial = DateTime.tryParse(_dueDateCtrl.text) ?? DateTime.now();
     final picked = await showDatePicker(
@@ -155,6 +191,18 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
         appBar: AppBar(
           title: const Text('Edit Entry'),
           actions: [
+            if (widget.api.hasBrainUrl)
+              IconButton(
+                onPressed: _classifying ? null : _classify,
+                icon: _classifying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_fix_high),
+                tooltip: 'AI Classify',
+              ),
             TextButton.icon(
               onPressed: (_saving || !_dirty) ? null : _save,
               icon: _saving
