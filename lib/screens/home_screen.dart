@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:home_widget/home_widget.dart';
 import '../services/brain_service.dart';
 import '../services/brain_api.dart';
 import '../services/speech_service.dart';
+import '../services/notification_service.dart';
+import '../services/offline_queue.dart';
+import '../services/widget_service.dart';
 import '../widgets/thought_card.dart';
 import '../widgets/connection_indicator.dart';
 import 'edit_entry_screen.dart';
@@ -45,6 +49,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _autoSend = true;
   bool _drivingMode = false;
 
+  // Offline queue
+  final _offlineQueue = OfflineQueue();
+  int _queueCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +61,101 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadSttPrefs();
     _initServices();
     _initSpeech();
+    _initNotifications();
+    _initOfflineQueue();
+    _initWidgetClicks();
+  }
+
+  void _initWidgetClicks() {
+    HomeWidget.widgetClicked.listen((uri) {
+      if (uri == null) return;
+      if (uri.host == 'voice') {
+        // Focus text field and start listening
+        _focusNode.requestFocus();
+        _speech.startListening();
+      } else if (uri.host == 'entry' && uri.pathSegments.isNotEmpty) {
+        final entryId = uri.pathSegments.first;
+        _openEntryById(entryId);
+      }
+    });
+  }
+
+  Future<void> _openEntryById(String entryId) async {
+    try {
+      final entries = await _api.getHistory(limit: 50);
+      final entry = entries.cast<HistoryEntry?>().firstWhere(
+        (e) => e!.id == entryId,
+        orElse: () => null,
+      );
+      if (entry != null && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EditEntryScreen(api: _api, entry: entry),
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _initNotifications() {
+    final notifs = NotificationService();
+    notifs.onNotificationAction = (entryId, actionId) async {
+      switch (actionId) {
+        case 'mark_done':
+          try {
+            // Find entry type to toggle correctly
+            final entries = await _api.getHistory(limit: 50);
+            final entry = entries.cast<HistoryEntry?>().firstWhere(
+              (e) => e!.id == entryId,
+              orElse: () => null,
+            );
+            if (entry != null) {
+              await _api.toggleDone(entry);
+              notifs.cancelReminder(entryId);
+            }
+          } catch (_) {}
+        case 'snooze':
+          notifs.snoozeReminder(entryId, null, const Duration(hours: 1));
+        default:
+          // Open entry for editing
+          try {
+            final entries = await _api.getHistory(limit: 50);
+            final entry = entries.cast<HistoryEntry?>().firstWhere(
+              (e) => e!.id == entryId,
+              orElse: () => null,
+            );
+            if (entry != null && mounted) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EditEntryScreen(api: _api, entry: entry),
+                ),
+              );
+            }
+          } catch (_) {}
+      }
+    };
+  }
+
+  void _initOfflineQueue() {
+    _offlineQueue.startMonitoring(_brain, _api);
+    _offlineQueue.onCountChanged = (count) {
+      if (mounted) setState(() => _queueCount = count);
+    };
+    _offlineQueue.onSynced = () {
+      // Refresh widget data after sync drain
+      _updateWidget();
+    };
+    // Check initial count
+    _offlineQueue.count().then((c) {
+      if (mounted) setState(() => _queueCount = c);
+    });
+  }
+
+  Future<void> _updateWidget() async {
+    try {
+      final entries = await _api.getHistory(limit: 50);
+      await WidgetService().updateWidget(entries);
+    } catch (_) {}
   }
 
   Future<void> _loadSttPrefs() async {
@@ -172,18 +275,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
-    final id = _brain.sendThought(text);
-    setState(() {
-      _thoughts.insert(
-        0,
-        PendingThought(
-          id: id,
-          text: text,
-          timestamp: DateTime.now(),
-          sent: true,
-        ),
-      );
-    });
+    if (_connectionState == BrainConnectionState.connected) {
+      final id = _brain.sendThought(text);
+      setState(() {
+        _thoughts.insert(
+          0,
+          PendingThought(
+            id: id,
+            text: text,
+            timestamp: DateTime.now(),
+            sent: true,
+          ),
+        );
+      });
+    } else {
+      // Offline: queue for later
+      _offlineQueue.enqueue('thought', {'text': text});
+      setState(() {
+        _thoughts.insert(
+          0,
+          PendingThought(
+            id: 'offline_${DateTime.now().millisecondsSinceEpoch}',
+            text: text,
+            timestamp: DateTime.now(),
+            sent: false,
+            error: 'Queued offline',
+          ),
+        );
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved offline — will sync when connected'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
 
     _textController.clear();
     _focusNode.requestFocus();
@@ -277,6 +406,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ConnectionIndicator(
             connectionState: _connectionState,
             agentOnline: _agentOnline,
+            queueCount: _queueCount,
           ),
           IconButton(
             icon: const Icon(Icons.history),

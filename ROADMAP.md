@@ -22,10 +22,10 @@ The vision: a pocket-sized brain that captures thoughts, learns from you, and in
 - [x] **Archive (swipe right)** — swipe right to archive entries (vs. swipe left to delete), plus an archive filter to browse archived items
 - [x] **STT settings toggle** — settings switch for speech-to-text auto-send; driving mode that keeps mic hot and reads back results automatically
 - [x] **Consolidate brain tools into becoming-mcp** — add brain_search, brain_recent, brain_get, brain_stats, brain_tags, brain_update, brain_create, brain_delete tools to the becoming MCP server (retire standalone brain-mcp). One MCP server, one auth token, full read+write.
-- [ ] **Offline queue** — capture thoughts when offline, sync when connection returns
-- [ ] **Notification reminders** — surface due-date entries as local notifications
-- [ ] **Quick actions from notification** — mark done, snooze, open entry directly
-- [ ] **Home screen widget** — at-a-glance today's actions + due items, with a mic button for instant voice capture straight from the widget
+- [x] **Offline queue** — capture thoughts when offline, sync when connection returns
+- [x] **Notification reminders** — surface due-date entries as local notifications
+- [x] **Quick actions from notification** — mark done, snooze, open entry directly
+- [x] **Home screen widget** — at-a-glance today's actions + due items, with a mic button for instant voice capture straight from the widget
 
 ## Medium Term
 

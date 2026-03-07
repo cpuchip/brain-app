@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String initialUrl;
@@ -29,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _obscureToken = true;
   bool _autoSend = true;
   bool _drivingMode = false;
+  bool _notificationsEnabled = false;
+  int _reminderHour = 8;
 
   @override
   void initState() {
@@ -44,12 +47,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _autoSend = prefs.getBool('stt_auto_send') ?? true;
       _drivingMode = prefs.getBool('stt_driving_mode') ?? false;
+      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
+      _reminderHour = prefs.getInt('reminder_hour') ?? 8;
     });
   }
 
   Future<void> _saveSttPref(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
+  }
+
+  String _formatHour(int hour) {
+    if (hour == 0) return '12:00 AM';
+    if (hour < 12) return '$hour:00 AM';
+    if (hour == 12) return '12:00 PM';
+    return '${hour - 12}:00 PM';
   }
 
   @override
@@ -207,6 +219,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               },
             ),
+            const SizedBox(height: 24),
+            // Notification settings
+            Text(
+              'Notifications',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile(
+              title: const Text('Due date reminders'),
+              subtitle: const Text('Get notified when entries are due'),
+              value: _notificationsEnabled,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (v) async {
+                if (v) {
+                  final granted = await NotificationService().requestPermission();
+                  if (!granted) return;
+                }
+                setState(() => _notificationsEnabled = v);
+                _saveSttPref('notifications_enabled', v);
+                if (!v) {
+                  // Cancel all scheduled notifications
+                  final notifPlugin = NotificationService();
+                  notifPlugin.rebuildReminders([]);
+                }
+              },
+            ),
+            if (_notificationsEnabled)
+              ListTile(
+                title: const Text('Reminder time'),
+                subtitle: Text(_formatHour(_reminderHour)),
+                contentPadding: EdgeInsets.zero,
+                trailing: const Icon(Icons.schedule),
+                onTap: () async {
+                  final time = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay(hour: _reminderHour, minute: 0),
+                  );
+                  if (time != null) {
+                    setState(() => _reminderHour = time.hour);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setInt('reminder_hour', time.hour);
+                  }
+                },
+              ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

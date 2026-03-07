@@ -4,11 +4,13 @@ import '../services/brain_service.dart';
 class ConnectionIndicator extends StatelessWidget {
   final BrainConnectionState connectionState;
   final bool agentOnline;
+  final int queueCount;
 
   const ConnectionIndicator({
     super.key,
     required this.connectionState,
     required this.agentOnline,
+    this.queueCount = 0,
   });
 
   @override
@@ -36,6 +38,25 @@ class ConnectionIndicator extends StatelessWidget {
             ],
             // Connection icon
             Icon(icon, size: 18, color: color),
+            // Queue count badge
+            if (queueCount > 0) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$queueCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

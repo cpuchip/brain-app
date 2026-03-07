@@ -3,6 +3,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/notification_service.dart';
+import 'services/offline_queue.dart';
+
+/// Global navigator key for notification tap navigation.
+final navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +16,12 @@ void main() async {
   try {
     await dotenv.load(fileName: '.env');
   } catch (_) {}
+
+  // Initialize notification service early
+  await NotificationService().init();
+
+  // Initialize offline queue
+  await OfflineQueue().init();
 
   runApp(const BrainApp());
 }
@@ -22,6 +33,7 @@ class BrainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Brain',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF6750A4),

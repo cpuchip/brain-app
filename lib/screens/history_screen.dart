@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../services/brain_api.dart';
+import '../services/notification_service.dart';
+import '../services/widget_service.dart';
 import 'edit_entry_screen.dart';
 import 'create_entry_screen.dart';
 import 'package:intl/intl.dart';
@@ -84,6 +86,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
           _loading = false;
         });
       }
+      // Rebuild notification reminders and update widget
+      NotificationService().rebuildReminders(entries);
+      WidgetService().updateWidget(entries);
     } catch (e) {
       if (mounted) {
         setState(() {
