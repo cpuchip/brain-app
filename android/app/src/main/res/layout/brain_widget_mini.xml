@@ -18,14 +18,14 @@
         android:textSize="20sp"
         android:clickable="true"
         android:focusable="true"
-        android:layout_marginEnd="8dp" />
+        android:layout_marginEnd="16dp" />
 
     <!-- + button (text mode quick-add) -->
     <ImageButton
         android:id="@+id/btn_add"
         android:layout_width="36dp"
         android:layout_height="36dp"
-        android:layout_marginEnd="6dp"
+        android:layout_marginEnd="12dp"
         android:background="@drawable/widget_button_bg"
         android:contentDescription="New entry"
         android:src="@android:drawable/ic_input_add"
