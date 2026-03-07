@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../services/brain_api.dart';
 
 /// Full-screen editor for a brain entry.
@@ -24,6 +25,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   bool _saving = false;
   bool _dirty = false;
   bool _classifying = false;
+  bool _previewBody = false;
 
   static const _categories = [
     'inbox',
@@ -284,18 +286,57 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Body
-              TextField(
-                controller: _bodyCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Body',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                maxLines: 6,
-                minLines: 3,
-                textCapitalization: TextCapitalization.sentences,
+              // Body — edit / preview toggle
+              Row(
+                children: [
+                  Text('Body', style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+                  const Spacer(),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('Edit')),
+                      ButtonSegment(value: true, label: Text('Preview')),
+                    ],
+                    selected: {_previewBody},
+                    onSelectionChanged: (v) => setState(() => _previewBody = v.first),
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
+              if (_previewBody)
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(minHeight: 100),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: _bodyCtrl.text.trim().isEmpty
+                      ? Text('Nothing to preview',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.outline))
+                      : MarkdownBody(
+                          data: _bodyCtrl.text,
+                          selectable: true,
+                          styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                            p: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                )
+              else
+                TextField(
+                  controller: _bodyCtrl,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 8,
+                  minLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
               const SizedBox(height: 16),
 
               // Due date + Next action row

@@ -584,10 +584,10 @@ class _HistoryCard extends StatelessWidget {
               ),
             ],
 
-            // Text
+            // Text (strip markdown for preview)
             const SizedBox(height: 4),
             Text(
-              entry.text,
+              _stripMarkdown(entry.text),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurface.withValues(alpha: 0.8),
               ),
@@ -659,6 +659,23 @@ class _HistoryCard extends StatelessWidget {
       ),
       ),
     );
+  }
+
+  /// Strip common markdown syntax for plain-text preview in list cards.
+  static String _stripMarkdown(String text) {
+    return text
+        .replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '') // headings
+        .replaceAll(RegExp(r'\*\*(.+?)\*\*'), r'$1')          // bold
+        .replaceAll(RegExp(r'\*(.+?)\*'), r'$1')               // italic
+        .replaceAll(RegExp(r'~~(.+?)~~'), r'$1')               // strikethrough
+        .replaceAll(RegExp(r'`(.+?)`'), r'$1')                 // inline code
+        .replaceAll(RegExp(r'^\s*[-*+]\s+', multiLine: true), '') // bullets
+        .replaceAll(RegExp(r'^\s*\d+\.\s+', multiLine: true), '') // numbered
+        .replaceAll(RegExp(r'\[(.+?)\]\(.+?\)'), r'$1')       // links
+        .replaceAll(RegExp(r'!\[.*?\]\(.+?\)'), '')            // images
+        .replaceAll(RegExp(r'>\s?', multiLine: true), '')      // blockquotes
+        .replaceAll(RegExp(r'\n{2,}'), '\n')                   // collapse blanks
+        .trim();
   }
 
   Color _categoryColor(String? category, ColorScheme colorScheme) {
