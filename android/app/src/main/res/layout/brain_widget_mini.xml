@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 2x1 ultra-compact layout: all TextViews to avoid ImageButton min-height issues -->
+<!-- 2x1 ultra-compact layout: brain icon + add + mic in a tight centered row -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background_mini"
-    android:gravity="center_vertical"
+    android:background="@drawable/widget_background"
+    android:gravity="center"
     android:orientation="horizontal"
-    android:paddingStart="8dp"
-    android:paddingEnd="8dp">
+    android:padding="6dp">
 
     <!-- Brain icon — launches main app -->
     <TextView
@@ -15,34 +15,31 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="🧠"
-        android:textSize="16sp"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <!-- Spacer -->
-    <View
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:layout_weight="1" />
-
-    <!-- + button (text mode quick-add) -->
-    <TextView
-        android:id="@+id/btn_add"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="➕"
-        android:textSize="18sp"
+        android:textSize="20sp"
         android:clickable="true"
         android:focusable="true"
-        android:paddingEnd="10dp" />
+        android:layout_marginEnd="8dp" />
+
+    <!-- + button (text mode quick-add) -->
+    <ImageButton
+        android:id="@+id/btn_add"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="New entry"
+        android:src="@android:drawable/ic_input_add"
+        android:scaleType="centerInside"
+        android:tint="#BB86FC" />
 
     <!-- Mic button (voice mode quick-add) -->
-    <TextView
+    <ImageButton
         android:id="@+id/btn_mic"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🎙️"
-        android:textSize="18sp"
-        android:clickable="true"
-        android:focusable="true" />
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="Voice capture"
+        android:src="@android:drawable/ic_btn_speak_now"
+        android:scaleType="centerInside"
+        android:tint="#BB86FC" />
 </LinearLayout>
