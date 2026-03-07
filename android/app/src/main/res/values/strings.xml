@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Your actionable brain entries at a glance. Quick-add thoughts with text or voice.</string>
+    <string name="widget_mini_description">Compact quick-add bar: text or voice capture.</string>
 </resources>

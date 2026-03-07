@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/brain_widget_mini"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:minWidth="110dp"
+    android:minHeight="50dp"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:description="@string/widget_mini_description"
+    android:previewLayout="@layout/brain_widget_mini"
+    android:label="Brain Quick Add" />

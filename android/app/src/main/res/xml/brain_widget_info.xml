@@ -13,4 +13,5 @@
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="1800000"
     android:description="@string/widget_description"
-    android:previewLayout="@layout/brain_widget" />
+    android:previewLayout="@layout/brain_widget"
+    android:label="Brain Actions" />

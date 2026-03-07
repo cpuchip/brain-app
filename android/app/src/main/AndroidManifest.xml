@@ -48,7 +48,7 @@
         </receiver>
         <receiver android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false" />
-        <!-- Home screen widget -->
+        <!-- Home screen widget (4x2 standard, resizable) -->
         <receiver android:name=".BrainWidgetProvider"
             android:exported="true">
             <intent-filter>
@@ -57,6 +57,16 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/brain_widget_info" />
+        </receiver>
+        <!-- Home screen widget (2x1 mini, fixed) -->
+        <receiver android:name=".BrainWidgetMiniProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/brain_widget_mini_info" />
         </receiver>
         <meta-data
             android:name="flutterEmbedding"
