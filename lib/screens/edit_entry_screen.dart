@@ -26,6 +26,8 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   bool _dirty = false;
   bool _classifying = false;
   bool _previewBody = false;
+  late List<SubTask> _subtasks;
+  final TextEditingController _newSubTaskCtrl = TextEditingController();
 
   static const _categories = [
     'inbox',
@@ -48,6 +50,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
     _tagsCtrl = TextEditingController(text: e.tags.join(', '));
     _category = e.category ?? 'inbox';
     _status = e.status ?? '';
+    _subtasks = List<SubTask>.from(e.subtasks);
 
     for (final c in [_titleCtrl, _bodyCtrl, _dueDateCtrl, _nextActionCtrl, _tagsCtrl]) {
       c.addListener(_markDirty);
@@ -65,6 +68,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
     _dueDateCtrl.dispose();
     _nextActionCtrl.dispose();
     _tagsCtrl.dispose();
+    _newSubTaskCtrl.dispose();
     super.dispose();
   }
 
@@ -161,6 +165,54 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
       _dueDateCtrl.text =
           '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       _markDirty();
+    }
+  }
+
+  // --- Sub-task actions ---
+
+  Future<void> _addSubTask() async {
+    final text = _newSubTaskCtrl.text.trim();
+    if (text.isEmpty) return;
+    try {
+      final st = await widget.api.createSubTask(widget.entry.id, text, sortOrder: _subtasks.length);
+      setState(() {
+        _subtasks.add(st);
+        _newSubTaskCtrl.clear();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Add failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleSubTask(int index) async {
+    final st = _subtasks[index];
+    try {
+      final updated = await widget.api.toggleSubTask(widget.entry.id, st);
+      setState(() => _subtasks[index] = updated);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Toggle failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSubTask(int index) async {
+    final st = _subtasks[index];
+    try {
+      await widget.api.deleteSubTask(widget.entry.id, st.id);
+      setState(() => _subtasks.removeAt(index));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
     }
   }
 
@@ -337,6 +389,82 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
                   minLines: 3,
                   textCapitalization: TextCapitalization.sentences,
                 ),
+              const SizedBox(height: 16),
+
+              // Sub-tasks
+              Text('Sub-tasks', style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 8),
+              if (_subtasks.isNotEmpty) ...[
+                ...List.generate(_subtasks.length, (i) {
+                  final st = _subtasks[i];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => _toggleSubTask(i),
+                          child: Container(
+                            width: 22,
+                            height: 22,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: st.done ? Colors.green.shade600 : Colors.transparent,
+                              border: Border.all(
+                                color: st.done ? Colors.green.shade600 : colorScheme.outline,
+                                width: 2,
+                              ),
+                            ),
+                            child: st.done
+                                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                : null,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            st.text,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              decoration: st.done ? TextDecoration.lineThrough : null,
+                              color: st.done ? colorScheme.outline : null,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close, size: 18, color: colorScheme.outline),
+                          onPressed: () => _deleteSubTask(i),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 4),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newSubTaskCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Add item...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        isDense: true,
+                      ),
+                      textCapitalization: TextCapitalization.sentences,
+                      onSubmitted: (_) => _addSubTask(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: _addSubTask,
+                    icon: const Icon(Icons.add, size: 20),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
 
               // Due date + Next action row

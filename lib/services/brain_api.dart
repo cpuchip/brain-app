@@ -192,6 +192,50 @@ class BrainApi {
     }
     return null; // result arrives async via entry_updated
   }
+
+  // --- Sub-task CRUD (direct mode only) ---
+
+  /// Create a sub-task under an entry.
+  Future<SubTask> createSubTask(String entryId, String text, {int sortOrder = 0}) async {
+    final url = '$_dataUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks';
+    final resp = await http.post(
+      Uri.parse(url),
+      headers: _headers,
+      body: jsonEncode({'text': text, 'sort_order': sortOrder}),
+    );
+    if (resp.statusCode != 201 && resp.statusCode != 200) {
+      throw Exception('Create subtask failed: ${resp.statusCode}');
+    }
+    return SubTask.fromJson(jsonDecode(resp.body));
+  }
+
+  /// Update a sub-task (text, done, sort_order).
+  Future<SubTask> updateSubTask(String entryId, String subtaskId, Map<String, dynamic> updates) async {
+    final url = '$_dataUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks/${Uri.encodeComponent(subtaskId)}';
+    final resp = await http.put(
+      Uri.parse(url),
+      headers: _headers,
+      body: jsonEncode(updates),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Update subtask failed: ${resp.statusCode}');
+    }
+    return SubTask.fromJson(jsonDecode(resp.body));
+  }
+
+  /// Delete a sub-task.
+  Future<void> deleteSubTask(String entryId, String subtaskId) async {
+    final url = '$_dataUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks/${Uri.encodeComponent(subtaskId)}';
+    final resp = await http.delete(Uri.parse(url), headers: _headers);
+    if (resp.statusCode != 204 && resp.statusCode != 200) {
+      throw Exception('Delete subtask failed: ${resp.statusCode}');
+    }
+  }
+
+  /// Toggle done state for a sub-task.
+  Future<SubTask> toggleSubTask(String entryId, SubTask subtask) async {
+    return updateSubTask(entryId, subtask.id, {'done': !subtask.done});
+  }
 }
 
 class BrainStatus {
@@ -230,6 +274,7 @@ class HistoryEntry {
   final String? dueDate;
   final String? nextAction;
   final List<String> tags;
+  final List<SubTask> subtasks;
 
   HistoryEntry({
     required this.id,
@@ -244,6 +289,7 @@ class HistoryEntry {
     this.dueDate,
     this.nextAction,
     this.tags = const [],
+    this.subtasks = const [],
   });
 
   /// Whether this entry is marked done.
@@ -266,6 +312,7 @@ class HistoryEntry {
       dueDate: json['due_date'],
       nextAction: json['next_action'],
       tags: _parseTags(json['tags']),
+      subtasks: _parseSubTasks(json['subtasks']),
     );
   }
 
@@ -284,6 +331,7 @@ class HistoryEntry {
       dueDate: json['due_date'],
       nextAction: json['next_action'],
       tags: _parseTags(json['tags']),
+      subtasks: _parseSubTasks(json['subtasks']),
     );
   }
 
@@ -292,4 +340,41 @@ class HistoryEntry {
     if (v is String && v.isNotEmpty) return v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     return [];
   }
+
+  static List<SubTask> _parseSubTasks(dynamic v) {
+    if (v is List) return v.map((e) => SubTask.fromJson(e as Map<String, dynamic>)).toList();
+    return [];
+  }
+}
+
+class SubTask {
+  final String id;
+  final String entryId;
+  final String text;
+  final bool done;
+  final int sortOrder;
+
+  SubTask({
+    required this.id,
+    required this.entryId,
+    required this.text,
+    this.done = false,
+    this.sortOrder = 0,
+  });
+
+  factory SubTask.fromJson(Map<String, dynamic> json) => SubTask(
+    id: json['id']?.toString() ?? '',
+    entryId: json['entry_id']?.toString() ?? '',
+    text: json['text'] ?? '',
+    done: json['done'] ?? false,
+    sortOrder: json['sort_order'] ?? 0,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'entry_id': entryId,
+    'text': text,
+    'done': done,
+    'sort_order': sortOrder,
+  };
 }

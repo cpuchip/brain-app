@@ -638,6 +638,39 @@ class _HistoryCard extends StatelessWidget {
               ),
             ],
 
+            // Sub-task progress
+            if (entry.subtasks.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              () {
+                final done = entry.subtasks.where((s) => s.done).length;
+                final total = entry.subtasks.length;
+                return Row(
+                  children: [
+                    Icon(Icons.checklist, size: 14, color: done == total ? Colors.green.shade600 : colorScheme.outline),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$done/$total',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: done == total ? Colors.green.shade600 : colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: total > 0 ? done / total : 0,
+                          minHeight: 4,
+                          backgroundColor: colorScheme.outline.withValues(alpha: 0.15),
+                          color: done == total ? Colors.green.shade600 : colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }(),
+            ],
+
             // Status
             if (!entry.processed) ...[
               const SizedBox(height: 6),
