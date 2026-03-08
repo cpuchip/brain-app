@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../services/brain_api.dart';
+import '../services/brain_service.dart';
 import '../services/notification_service.dart';
 import '../services/widget_service.dart';
 import 'edit_entry_screen.dart';
@@ -9,8 +10,9 @@ import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
   final BrainApi api;
+  final Stream<EntryUpdatedEvent>? entryUpdated;
 
-  const HistoryScreen({super.key, required this.api});
+  const HistoryScreen({super.key, required this.api, this.entryUpdated});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -28,6 +30,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _showArchived = false;
   bool _showDone = false;
   Timer? _debounce;
+  StreamSubscription<EntryUpdatedEvent>? _entryUpdatedSub;
 
   static const _filterCategories = [
     'actions', 'projects', 'ideas', 'people', 'study', 'journal', 'inbox',
@@ -37,13 +40,45 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _loadHistory();
+    _entryUpdatedSub = widget.entryUpdated?.listen(_onEntryUpdated);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _debounce?.cancel();
+    _entryUpdatedSub?.cancel();
     super.dispose();
+  }
+
+  void _onEntryUpdated(EntryUpdatedEvent event) {
+    final entries = _entries;
+    if (entries == null) return;
+
+    final idx = entries.indexWhere((e) => e.id == event.id);
+    final updated = HistoryEntry(
+      id: event.id,
+      text: event.body,
+      category: event.category,
+      title: event.title,
+      confidence: null,
+      timestamp: DateTime.tryParse(event.createdAt) ?? DateTime.now(),
+      processed: true,
+      actionDone: event.actionDone,
+      status: event.status,
+      dueDate: event.dueDate,
+      nextAction: event.nextAction,
+      tags: event.tags,
+      subtasks: event.subtasks.map((e) => SubTask.fromJson(e)).toList(),
+    );
+
+    setState(() {
+      if (idx >= 0) {
+        entries[idx] = updated;
+      } else {
+        entries.insert(0, updated);
+      }
+    });
   }
 
   void _onSearchChanged(String query) {
@@ -152,7 +187,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> _editEntry(HistoryEntry entry) async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => EditEntryScreen(api: widget.api, entry: entry),
+        builder: (_) => EditEntryScreen(
+          api: widget.api,
+          entry: entry,
+          entryUpdated: widget.entryUpdated,
+        ),
       ),
     );
     if (changed == true) {

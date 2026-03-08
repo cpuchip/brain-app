@@ -13,6 +13,7 @@ class MessageType {
   static const ping = 'ping';
   static const pong = 'pong';
   static const presence = 'presence';
+  static const entryUpdated = 'entry_updated';
 }
 
 /// A classified result from the brain agent.
@@ -88,10 +89,15 @@ class BrainService {
   bool _intentionalClose = false;
   int _reconnectAttempt = 0;
 
+  // Stream for entry_updated events — screens subscribe to this.
+  final _entryUpdatedController = StreamController<EntryUpdatedEvent>.broadcast();
+  Stream<EntryUpdatedEvent> get entryUpdated => _entryUpdatedController.stream;
+
   // Callbacks
   void Function(BrainConnectionState state)? onStateChanged;
   void Function(bool online)? onAgentPresence;
   void Function(BrainResult result)? onResult;
+  void Function(EntryUpdatedEvent event)? onEntryUpdated;
   void Function(String error)? onError;
 
   BrainService({required this.baseUrl, required this.token});
@@ -188,6 +194,15 @@ class BrainService {
           onAgentPresence?.call(_agentOnline);
           break;
 
+        case MessageType.entryUpdated:
+          final entry = json['entry'] as Map<String, dynamic>?;
+          if (entry != null) {
+            final event = EntryUpdatedEvent.fromJson(entry);
+            onEntryUpdated?.call(event);
+            _entryUpdatedController.add(event);
+          }
+          break;
+
         case MessageType.ping:
           _send({'type': MessageType.pong});
           break;
@@ -257,5 +272,58 @@ class BrainService {
 
   void dispose() {
     disconnect();
+    _entryUpdatedController.close();
+  }
+}
+
+/// Payload from an entry_updated WebSocket message.
+/// Maps from the SyncEntryPayload format (uses 'body' not 'text').
+class EntryUpdatedEvent {
+  final String id;
+  final String title;
+  final String category;
+  final String body;
+  final String? status;
+  final bool actionDone;
+  final String? dueDate;
+  final String? nextAction;
+  final List<String> tags;
+  final List<Map<String, dynamic>> subtasks;
+  final String createdAt;
+  final String updatedAt;
+
+  EntryUpdatedEvent({
+    required this.id,
+    required this.title,
+    required this.category,
+    required this.body,
+    this.status,
+    this.actionDone = false,
+    this.dueDate,
+    this.nextAction,
+    this.tags = const [],
+    this.subtasks = const [],
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory EntryUpdatedEvent.fromJson(Map<String, dynamic> json) {
+    return EntryUpdatedEvent(
+      id: json['id']?.toString() ?? '',
+      title: json['title'] ?? '',
+      category: json['category'] ?? 'inbox',
+      body: json['body'] ?? '',
+      status: json['status'],
+      actionDone: json['action_done'] ?? false,
+      dueDate: json['due_date'],
+      nextAction: json['next_action'],
+      tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      subtasks: (json['subtasks'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [],
+      createdAt: json['created_at'] ?? '',
+      updatedAt: json['updated_at'] ?? '',
+    );
   }
 }

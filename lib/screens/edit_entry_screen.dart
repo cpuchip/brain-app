@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../services/brain_api.dart';
+import '../services/brain_service.dart';
 
 /// Full-screen editor for a brain entry.
 class EditEntryScreen extends StatefulWidget {
   final BrainApi api;
   final HistoryEntry entry;
+  final Stream<EntryUpdatedEvent>? entryUpdated;
 
-  const EditEntryScreen({super.key, required this.api, required this.entry});
+  const EditEntryScreen({
+    super.key,
+    required this.api,
+    required this.entry,
+    this.entryUpdated,
+  });
 
   @override
   State<EditEntryScreen> createState() => _EditEntryScreenState();
@@ -28,6 +36,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   bool _previewBody = false;
   late List<SubTask> _subtasks;
   final TextEditingController _newSubTaskCtrl = TextEditingController();
+  StreamSubscription<EntryUpdatedEvent>? _entryUpdatedSub;
 
   static const _categories = [
     'inbox',
@@ -55,6 +64,46 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
     for (final c in [_titleCtrl, _bodyCtrl, _dueDateCtrl, _nextActionCtrl, _tagsCtrl]) {
       c.addListener(_markDirty);
     }
+
+    _entryUpdatedSub = widget.entryUpdated
+        ?.where((e) => e.id == widget.entry.id)
+        .listen(_onEntryUpdated);
+  }
+
+  void _onEntryUpdated(EntryUpdatedEvent event) {
+    if (_dirty) {
+      // User has local edits — show a snackbar instead of overwriting.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Entry was reclassified — save or discard to see changes'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    // No local edits — apply the update.
+    _titleCtrl.text = event.title;
+    _bodyCtrl.text = event.body;
+    _dueDateCtrl.text = event.dueDate ?? '';
+    _nextActionCtrl.text = event.nextAction ?? '';
+    _tagsCtrl.text = event.tags.join(', ');
+    setState(() {
+      _category = event.category;
+      _status = event.status ?? _status;
+      _subtasks = event.subtasks.map((e) => SubTask.fromJson(e)).toList();
+      _dirty = false; // reset since we just applied server state
+      _classifying = false;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Updated — now "${event.category}": ${event.title}'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _markDirty() {
@@ -63,6 +112,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
 
   @override
   void dispose() {
+    _entryUpdatedSub?.cancel();
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     _dueDateCtrl.dispose();

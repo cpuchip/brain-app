@@ -119,7 +119,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (entry != null && mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => EditEntryScreen(api: _api, entry: entry),
+            builder: (_) => EditEntryScreen(
+              api: _api,
+              entry: entry,
+              entryUpdated: _brain.entryUpdated,
+            ),
           ),
         );
       }
@@ -156,7 +160,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             if (entry != null && mounted) {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => EditEntryScreen(api: _api, entry: entry),
+                  builder: (_) => EditEntryScreen(
+                    api: _api,
+                    entry: entry,
+                    entryUpdated: _brain.entryUpdated,
+                  ),
                 ),
               );
             }
@@ -419,7 +427,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => EditEntryScreen(api: _api, entry: entry!),
+        builder: (_) => EditEntryScreen(
+          api: _api,
+          entry: entry!,
+          entryUpdated: _brain.entryUpdated,
+        ),
       ),
     );
   }
@@ -450,7 +462,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => HistoryScreen(api: _api),
+                  builder: (_) => HistoryScreen(
+                    api: _api,
+                    entryUpdated: _brain.entryUpdated,
+                  ),
                 ),
               );
             },
