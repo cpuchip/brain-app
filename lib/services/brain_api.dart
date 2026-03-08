@@ -193,48 +193,100 @@ class BrainApi {
     return null; // result arrives async via entry_updated
   }
 
-  // --- Sub-task CRUD (direct mode only) ---
+  // --- Sub-task CRUD (dual-mode: direct brain.exe or relay via ibeco.me) ---
 
   /// Create a sub-task under an entry.
   Future<SubTask> createSubTask(String entryId, String text, {int sortOrder = 0}) async {
-    final url = '$_dataUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks';
-    final resp = await http.post(
-      Uri.parse(url),
-      headers: _headers,
-      body: jsonEncode({'text': text, 'sort_order': sortOrder}),
-    );
-    if (resp.statusCode != 201 && resp.statusCode != 200) {
-      throw Exception('Create subtask failed: ${resp.statusCode}');
+    if (hasBrainUrl) {
+      final url = '$brainUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks';
+      final resp = await http.post(
+        Uri.parse(url),
+        headers: _headers,
+        body: jsonEncode({'text': text, 'sort_order': sortOrder}),
+      );
+      if (resp.statusCode != 201 && resp.statusCode != 200) {
+        throw Exception('Create subtask failed: ${resp.statusCode}');
+      }
+      return SubTask.fromJson(jsonDecode(resp.body));
+    } else {
+      final resp = await http.post(
+        Uri.parse('$baseUrl/api/brain/subtasks'),
+        headers: _headers,
+        body: jsonEncode({'entry_id': entryId, 'text': text}),
+      );
+      if (resp.statusCode != 200 && resp.statusCode != 201) {
+        throw Exception('Create subtask failed: ${resp.statusCode}');
+      }
+      // Relay returns {"status": "queued"} — return optimistic local subtask
+      return SubTask(id: 'pending-${DateTime.now().millisecondsSinceEpoch}', entryId: entryId, text: text, done: false, sortOrder: sortOrder);
     }
-    return SubTask.fromJson(jsonDecode(resp.body));
   }
 
   /// Update a sub-task (text, done, sort_order).
   Future<SubTask> updateSubTask(String entryId, String subtaskId, Map<String, dynamic> updates) async {
-    final url = '$_dataUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks/${Uri.encodeComponent(subtaskId)}';
-    final resp = await http.put(
-      Uri.parse(url),
-      headers: _headers,
-      body: jsonEncode(updates),
-    );
-    if (resp.statusCode != 200) {
-      throw Exception('Update subtask failed: ${resp.statusCode}');
+    if (hasBrainUrl) {
+      final url = '$brainUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks/${Uri.encodeComponent(subtaskId)}';
+      final resp = await http.put(
+        Uri.parse(url),
+        headers: _headers,
+        body: jsonEncode(updates),
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('Update subtask failed: ${resp.statusCode}');
+      }
+      return SubTask.fromJson(jsonDecode(resp.body));
+    } else {
+      final body = <String, dynamic>{
+        'entry_id': entryId,
+        'subtask_id': subtaskId,
+        ...updates,
+      };
+      final resp = await http.put(
+        Uri.parse('$baseUrl/api/brain/subtasks'),
+        headers: _headers,
+        body: jsonEncode(body),
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('Update subtask failed: ${resp.statusCode}');
+      }
+      // Relay returns {"status": "queued"} — return optimistic result
+      final done = updates.containsKey('done') ? updates['done'] as bool : false;
+      final text = updates.containsKey('text') ? updates['text'] as String : '';
+      return SubTask(id: subtaskId, entryId: entryId, text: text, done: done, sortOrder: 0);
     }
-    return SubTask.fromJson(jsonDecode(resp.body));
   }
 
   /// Delete a sub-task.
   Future<void> deleteSubTask(String entryId, String subtaskId) async {
-    final url = '$_dataUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks/${Uri.encodeComponent(subtaskId)}';
-    final resp = await http.delete(Uri.parse(url), headers: _headers);
-    if (resp.statusCode != 204 && resp.statusCode != 200) {
-      throw Exception('Delete subtask failed: ${resp.statusCode}');
+    if (hasBrainUrl) {
+      final url = '$brainUrl/api/entries/${Uri.encodeComponent(entryId)}/subtasks/${Uri.encodeComponent(subtaskId)}';
+      final resp = await http.delete(Uri.parse(url), headers: _headers);
+      if (resp.statusCode != 204 && resp.statusCode != 200) {
+        throw Exception('Delete subtask failed: ${resp.statusCode}');
+      }
+    } else {
+      final url = '$baseUrl/api/brain/subtasks?entry_id=${Uri.encodeComponent(entryId)}&subtask_id=${Uri.encodeComponent(subtaskId)}';
+      final resp = await http.delete(Uri.parse(url), headers: _headers);
+      if (resp.statusCode != 204 && resp.statusCode != 200) {
+        throw Exception('Delete subtask failed: ${resp.statusCode}');
+      }
     }
   }
 
   /// Toggle done state for a sub-task.
   Future<SubTask> toggleSubTask(String entryId, SubTask subtask) async {
-    return updateSubTask(entryId, subtask.id, {'done': !subtask.done});
+    final updated = await updateSubTask(entryId, subtask.id, {'done': !subtask.done});
+    // In relay mode the optimistic return lacks text/sortOrder — carry them forward
+    if (!hasBrainUrl) {
+      return SubTask(
+        id: subtask.id,
+        entryId: entryId,
+        text: subtask.text,
+        done: !subtask.done,
+        sortOrder: subtask.sortOrder,
+      );
+    }
+    return updated;
   }
 }
 
