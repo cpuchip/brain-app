@@ -14,6 +14,9 @@ class MessageType {
   static const pong = 'pong';
   static const presence = 'presence';
   static const entryUpdated = 'entry_updated';
+  static const entriesRequest = 'entries_request';
+  static const entriesResponse = 'entries_response';
+  static const queued = 'queued';
 }
 
 /// A classified result from the brain agent.
@@ -98,6 +101,7 @@ class BrainService {
   void Function(bool online)? onAgentPresence;
   void Function(BrainResult result)? onResult;
   void Function(EntryUpdatedEvent event)? onEntryUpdated;
+  void Function(List<Map<String, dynamic>> entries)? onEntriesSync;
   void Function(String error)? onError;
 
   BrainService({required this.baseUrl, required this.token});
@@ -168,6 +172,13 @@ class BrainService {
   void _onMessage(dynamic data) {
     try {
       final json = jsonDecode(data as String) as Map<String, dynamic>;
+      _handleMessage(json);
+    } catch (e) {
+      onError?.call('Parse error: $e');
+    }
+  }
+
+  void _handleMessage(Map<String, dynamic> json) {
       final type = json['type'] as String?;
 
       switch (type) {
@@ -175,6 +186,8 @@ class BrainService {
           _setState(BrainConnectionState.connected);
           _reconnectAttempt = 0;
           _startPingTimer();
+          // Request cached entries from relay for fresh data on connect
+          _send({'type': MessageType.entriesRequest});
           break;
 
         case MessageType.authError:
@@ -203,6 +216,36 @@ class BrainService {
           }
           break;
 
+        case MessageType.entriesResponse:
+          final entries = json['entries'] as List?;
+          if (entries != null) {
+            final mapped = entries
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+            onEntriesSync?.call(mapped);
+            // Also push each entry through the entryUpdated stream
+            // so any open screens (HistoryScreen, EditEntryScreen) get updated
+            for (final e in mapped) {
+              final event = EntryUpdatedEvent.fromJson(e);
+              _entryUpdatedController.add(event);
+            }
+          }
+          break;
+
+        case MessageType.queued:
+          // Bundle of messages queued while offline — unwrap and process each
+          final messages = json['messages'] as List?;
+          if (messages != null) {
+            for (final msg in messages) {
+              if (msg is Map<String, dynamic>) {
+                _handleMessage(msg);
+              } else if (msg is Map) {
+                _handleMessage(Map<String, dynamic>.from(msg));
+              }
+            }
+          }
+          break;
+
         case MessageType.ping:
           _send({'type': MessageType.pong});
           break;
@@ -212,9 +255,6 @@ class BrainService {
           onAgentPresence?.call(_agentOnline);
           break;
       }
-    } catch (e) {
-      onError?.call('Parse error: $e');
-    }
   }
 
   void _onDisconnected() {

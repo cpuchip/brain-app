@@ -160,28 +160,52 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _deleteEntry(HistoryEntry entry) async {
-    try {
-      await widget.api.deleteEntry(entry.id);
-      await _loadHistory();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Deleted "${entry.title ?? 'entry'}"'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+    // Optimistic remove from local list
+    final entries = _entries;
+    if (entries == null) return;
+    final idx = entries.indexOf(entry);
+    setState(() => entries.remove(entry));
+
+    // Show undo toast — actual delete fires after toast expires
+    bool undone = false;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Deleted "${entry.title ?? 'entry'}"'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            undone = true;
+            setState(() {
+              if (idx >= 0 && idx <= (entries.length)) {
+                entries.insert(idx, entry);
+              } else {
+                entries.insert(0, entry);
+              }
+            });
+          },
+        ),
+      ),
+    ).closed.then((_) async {
+      if (undone) return;
+      // Toast expired without undo — actually delete
+      try {
+        await widget.api.deleteEntry(entry.id);
+      } catch (e) {
+        // Delete failed — re-insert
+        if (mounted) {
+          setState(() => entries.insert(0, entry));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Delete failed: $e'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Delete failed: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    });
   }
 
   Future<void> _editEntry(HistoryEntry entry) async {

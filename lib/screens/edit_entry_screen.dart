@@ -38,6 +38,10 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   final TextEditingController _newSubTaskCtrl = TextEditingController();
   StreamSubscription<EntryUpdatedEvent>? _entryUpdatedSub;
 
+  // Pending relay subtask ops for error recovery (Gap 2)
+  final Map<String, _PendingSubTaskOp> _pendingOps = {};
+  Timer? _pendingOpsTimer;
+
   static const _categories = [
     'inbox',
     'actions',
@@ -71,6 +75,12 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   }
 
   void _onEntryUpdated(EntryUpdatedEvent event) {
+    // Reconcile any pending relay subtask ops
+    if (_pendingOps.isNotEmpty) {
+      final serverSubtasks = event.subtasks.map((e) => SubTask.fromJson(e)).toList();
+      _reconcilePendingOps(serverSubtasks);
+    }
+
     if (_dirty) {
       // User has local edits — show a snackbar instead of overwriting.
       if (mounted) {
@@ -113,6 +123,7 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
   @override
   void dispose() {
     _entryUpdatedSub?.cancel();
+    _pendingOpsTimer?.cancel();
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     _dueDateCtrl.dispose();
@@ -181,14 +192,22 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
           ),
         );
       } else {
-        // Relay mode: queued — result arrives async
-        setState(() => _classifying = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Classification requested — refresh to see results'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // Relay mode: queued — result arrives async via entry_updated
+        // Keep _classifying true — _onEntryUpdated will clear it
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Classification requested — update will appear automatically'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          // Safety timeout — clear spinner after 30s if no update arrives
+          Future.delayed(const Duration(seconds: 30), () {
+            if (mounted && _classifying) {
+              setState(() => _classifying = false);
+            }
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -243,6 +262,10 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
     try {
       final updated = await widget.api.toggleSubTask(widget.entry.id, st);
       setState(() => _subtasks[index] = updated);
+      // In relay mode, track the optimistic op for reconciliation
+      if (!widget.api.hasBrainUrl) {
+        _trackPendingOp(st.id, 'toggle', st);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -263,6 +286,82 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
           SnackBar(content: Text('Delete failed: $e'), behavior: SnackBarBehavior.floating),
         );
       }
+    }
+  }
+
+  /// Track an optimistic relay subtask operation for reconciliation.
+  void _trackPendingOp(String subtaskId, String operation, SubTask previousState) {
+    _pendingOps[subtaskId] = _PendingSubTaskOp(
+      subtaskId: subtaskId,
+      operation: operation,
+      previousState: previousState,
+      timestamp: DateTime.now(),
+    );
+    // Start a timeout timer if not already running
+    _pendingOpsTimer?.cancel();
+    _pendingOpsTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted && _pendingOps.isNotEmpty) {
+        _pendingOps.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Some changes may not have been saved — pull to refresh'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
+  }
+
+  /// Reconcile pending optimistic ops against server state.
+  void _reconcilePendingOps(List<SubTask> serverSubtasks) {
+    if (_pendingOps.isEmpty) return;
+
+    final failed = <String>[];
+    final resolved = <String>[];
+
+    for (final entry in _pendingOps.entries) {
+      final op = entry.value;
+      final serverSt = serverSubtasks.where((s) => s.id == op.subtaskId).firstOrNull;
+
+      if (op.operation == 'toggle') {
+        if (serverSt != null && serverSt.done == op.previousState.done) {
+          // Server state matches the PRE-toggle state — the op failed
+          failed.add(op.subtaskId);
+        } else {
+          resolved.add(op.subtaskId);
+        }
+      } else {
+        resolved.add(op.subtaskId);
+      }
+    }
+
+    for (final id in resolved) {
+      _pendingOps.remove(id);
+    }
+
+    if (failed.isNotEmpty) {
+      // Revert the failed toggles to match server state
+      for (final id in failed) {
+        _pendingOps.remove(id);
+        final idx = _subtasks.indexWhere((s) => s.id == id);
+        final serverSt = serverSubtasks.where((s) => s.id == id).firstOrNull;
+        if (idx >= 0 && serverSt != null) {
+          _subtasks[idx] = serverSt;
+        }
+      }
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${failed.length} subtask change${failed.length > 1 ? 's' : ''} failed — reverted'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+
+    if (_pendingOps.isEmpty) {
+      _pendingOpsTimer?.cancel();
     }
   }
 
@@ -593,4 +692,19 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
       ),
     );
   }
+}
+
+/// Tracks an optimistic subtask operation in relay mode for reconciliation.
+class _PendingSubTaskOp {
+  final String subtaskId;
+  final String operation; // 'toggle', 'create', 'delete'
+  final SubTask previousState;
+  final DateTime timestamp;
+
+  _PendingSubTaskOp({
+    required this.subtaskId,
+    required this.operation,
+    required this.previousState,
+    required this.timestamp,
+  });
 }
