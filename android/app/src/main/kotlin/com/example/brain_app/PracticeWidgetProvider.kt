@@ -30,17 +30,11 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         val count = widgetData.getInt("practice_count", 0)
         val filter = widgetData.getString("practice_filter", "All") ?: "All"
 
-        // Header: category name (tappable → opens filter activity)
+        // Header: category name (tappable → cycle filter via background callback)
         views.setTextViewText(R.id.practice_category, if (filter == "All") "All Practices" else filter)
 
-        val filterIntent = Intent(context, WidgetFilterActivity::class.java).apply {
-            data = Uri.parse("brainapp://widget-filter?type=practices")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val filterPending = PendingIntent.getActivity(
-            context, 300, filterIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val filterPending = HomeWidgetBackgroundIntent.getBroadcast(
+            context, Uri.parse("brainapp://practice-cycle-filter"))
         views.setOnClickPendingIntent(R.id.practice_category, filterPending)
 
         // Count completed

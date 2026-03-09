@@ -173,6 +173,39 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
       await WidgetService().updatePracticeWidget(practices);
     } catch (_) {}
   }
+
+  if (uri.host == 'practice-cycle-filter') {
+    // Cycle through available categories for the practice widget
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+    final token = prefs.getString('brain_token') ?? '';
+
+    try {
+      final api = BecomingApi(baseUrl: url, token: token);
+      final practices = await api.getPractices();
+
+      // Build category list: "All" + unique non-memorize categories
+      final cats = <String>{'All'};
+      for (final p in practices) {
+        if (p.category.isNotEmpty && p.type != 'memorize') {
+          cats.add(p.category);
+        }
+      }
+      final sorted = ['All', ...(cats.toList()..remove('All'))..sort()];
+
+      // Get current filter, advance to next
+      final current = await HomeWidget.getWidgetData<String>('practice_filter') ?? 'All';
+      final idx = sorted.indexOf(current);
+      final next = sorted[(idx + 1) % sorted.length];
+
+      await HomeWidget.saveWidgetData('practice_filter', next);
+
+      // Refresh practice widget data with new filter
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final daily = await api.getDailySummary(today);
+      await WidgetService().updatePracticeWidget(daily);
+    } catch (_) {}
+  }
 }
 
 /// Second entrypoint for the transparent QuickAddActivity.
