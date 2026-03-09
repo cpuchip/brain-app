@@ -11,8 +11,9 @@ import 'package:intl/intl.dart';
 class HistoryScreen extends StatefulWidget {
   final BrainApi api;
   final Stream<EntryUpdatedEvent>? entryUpdated;
+  final bool embedded;
 
-  const HistoryScreen({super.key, required this.api, this.entryUpdated});
+  const HistoryScreen({super.key, required this.api, this.entryUpdated, this.embedded = false});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -271,6 +272,86 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final body = Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Search entries...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: colorScheme.surfaceContainerHighest,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+          ),
+        ),
+
+        // Filter chips
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            children: [
+              FilterChip(
+                label: const Text('Done'),
+                selected: _showDone,
+                onSelected: (v) => setState(() => _showDone = v),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 6),
+              ..._filterCategories.map((cat) => Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: FilterChip(
+                  label: Text(cat),
+                  selected: _categoryFilter == cat,
+                  onSelected: (v) => setState(() => _categoryFilter = v ? cat : null),
+                  visualDensity: VisualDensity.compact,
+                ),
+              )),
+            ],
+          ),
+        ),
+
+        // Entry list
+        Expanded(child: _buildBody(theme, colorScheme)),
+      ],
+    );
+
+    if (widget.embedded) {
+      return Stack(
+        children: [
+          body,
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: _createEntry,
+              tooltip: 'New entry',
+              child: const Icon(Icons.add),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Brain'),
@@ -301,68 +382,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         tooltip: 'New entry',
         child: const Icon(Icons.add),
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search entries...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHighest,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-            ),
-          ),
-
-          // Filter chips
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              children: [
-                FilterChip(
-                  label: const Text('Done'),
-                  selected: _showDone,
-                  onSelected: (v) => setState(() => _showDone = v),
-                  visualDensity: VisualDensity.compact,
-                ),
-                const SizedBox(width: 6),
-                ..._filterCategories.map((cat) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
-                    label: Text(cat),
-                    selected: _categoryFilter == cat,
-                    onSelected: (v) => setState(() => _categoryFilter = v ? cat : null),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                )),
-              ],
-            ),
-          ),
-
-          // Entry list
-          Expanded(child: _buildBody(theme, colorScheme)),
-        ],
-      ),
+      body: body,
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:home_widget/home_widget.dart';
 import '../services/brain_service.dart';
 import '../services/brain_api.dart';
+import '../services/becoming_api.dart';
 import '../services/speech_service.dart';
 import '../services/notification_service.dart';
 import '../services/offline_queue.dart';
@@ -14,6 +15,7 @@ import '../widgets/connection_indicator.dart';
 import 'create_entry_screen.dart';
 import 'edit_entry_screen.dart';
 import 'history_screen.dart';
+import 'today_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -37,15 +39,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late BrainService _brain;
   late BrainApi _api;
+  late BecomingApi _becomingApi;
   final SpeechService _speech = SpeechService();
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
+  final _todayKey = GlobalKey<TodayScreenState>();
 
   BrainConnectionState _connectionState = BrainConnectionState.disconnected;
   bool _agentOnline = false;
   bool _isListening = false;
   final List<PendingThought> _thoughts = [];
+  int _tabIndex = 0;
 
   // STT preferences
   bool _autoSend = true;
@@ -244,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       token: widget.token,
       brainUrl: widget.brainUrl.isNotEmpty ? widget.brainUrl : null,
     );
+    _becomingApi = BecomingApi(baseUrl: widget.url, token: widget.token);
 
     _brain.onError = (error) {
       ErrorLogService().log('websocket', error);
@@ -445,9 +451,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: Row(
           children: [
-            Icon(Icons.psychology, color: colorScheme.primary),
+            Icon(
+              _tabIndex == 0
+                  ? Icons.psychology
+                  : _tabIndex == 1
+                      ? Icons.today
+                      : Icons.history,
+              color: colorScheme.primary,
+            ),
             const SizedBox(width: 8),
-            const Text('Brain'),
+            Text(_tabIndex == 0
+                ? 'Brain'
+                : _tabIndex == 1
+                    ? 'Today'
+                    : 'History'),
           ],
         ),
         actions: [
@@ -455,20 +472,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             connectionState: _connectionState,
             agentOnline: _agentOnline,
             queueCount: _queueCount,
-          ),
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'History',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => HistoryScreen(
-                    api: _api,
-                    entryUpdated: _brain.entryUpdated,
-                  ),
-                ),
-              );
-            },
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -489,130 +492,179 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: Column(
+      body: IndexedStack(
+        index: _tabIndex,
         children: [
-          // Thought list
-          Expanded(
-            child: _thoughts.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.lightbulb_outline,
-                          size: 64,
-                          color: colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Capture a thought',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: colorScheme.outline,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Type below — your brain will classify it',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    reverse: false,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    itemCount: _thoughts.length,
-                    itemBuilder: (context, index) {
-                      final thought = _thoughts[index];
-                      return ThoughtCard(
-                        thought: thought,
-                        onEdit: thought.result != null
-                            ? () => _editThought(thought)
-                            : null,
-                      );
-                    },
-                  ),
+          // Tab 0: Capture (original home body)
+          _buildCaptureTab(theme, colorScheme),
+          // Tab 1: Today
+          TodayScreen(
+            key: _todayKey,
+            becomingApi: _becomingApi,
+            brainApi: _api,
+            entryUpdated: _brain.entryUpdated,
           ),
-
-          // Input bar
-          Container(
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 8,
-              top: 8,
-              bottom: MediaQuery.of(context).viewPadding.bottom + 8,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    focusNode: _focusNode,
-                    textInputAction: TextInputAction.send,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLines: 4,
-                    minLines: 1,
-                    onSubmitted: (_) => _sendThought(),
-                    decoration: InputDecoration(
-                      hintText: 'What\'s on your mind?',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: colorScheme.surfaceContainerHighest,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Mic button — hold or tap to toggle
-                GestureDetector(
-                  onLongPressStart: (_) => _speech.startListening(),
-                  onLongPressEnd: (_) => _speech.stopListening(),
-                  child: IconButton(
-                    onPressed: () => _speech.toggleListening(),
-                    icon: Icon(
-                      _isListening ? Icons.mic : Icons.mic_none,
-                      color: _isListening
-                          ? Theme.of(context).colorScheme.error
-                          : null,
-                    ),
-                    tooltip: _isListening ? 'Stop listening' : 'Voice capture',
-                  ),
-                ),
-                const SizedBox(width: 4),
-                FloatingActionButton.small(
-                  onPressed: _textController.text.trim().isEmpty
-                      ? null
-                      : _sendThought,
-                  elevation: 0,
-                  child: const Icon(Icons.send),
-                ),
-              ],
-            ),
+          // Tab 2: History
+          HistoryScreen(
+            api: _api,
+            entryUpdated: _brain.entryUpdated,
+            embedded: true,
           ),
         ],
       ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tabIndex,
+        onDestinationSelected: (index) {
+          setState(() => _tabIndex = index);
+          if (index == 1) {
+            _todayKey.currentState?.refresh();
+          }
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.psychology_outlined),
+            selectedIcon: Icon(Icons.psychology),
+            label: 'Capture',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.today_outlined),
+            selectedIcon: Icon(Icons.today),
+            label: 'Today',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'History',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCaptureTab(ThemeData theme, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        // Thought list
+        Expanded(
+          child: _thoughts.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline,
+                        size: 64,
+                        color: colorScheme.outline,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Capture a thought',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Type below — your brain will classify it',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  controller: _scrollController,
+                  reverse: false,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  itemCount: _thoughts.length,
+                  itemBuilder: (context, index) {
+                    final thought = _thoughts[index];
+                    return ThoughtCard(
+                      thought: thought,
+                      onEdit: thought.result != null
+                          ? () => _editThought(thought)
+                          : null,
+                    );
+                  },
+                ),
+        ),
+
+        // Input bar
+        Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 8,
+            top: 8,
+            bottom: MediaQuery.of(context).viewPadding.bottom + 8,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  textInputAction: TextInputAction.send,
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLines: 4,
+                  minLines: 1,
+                  onSubmitted: (_) => _sendThought(),
+                  decoration: InputDecoration(
+                    hintText: 'What\'s on your mind?',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerHighest,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Mic button — hold or tap to toggle
+              GestureDetector(
+                onLongPressStart: (_) => _speech.startListening(),
+                onLongPressEnd: (_) => _speech.stopListening(),
+                child: IconButton(
+                  onPressed: () => _speech.toggleListening(),
+                  icon: Icon(
+                    _isListening ? Icons.mic : Icons.mic_none,
+                    color: _isListening
+                        ? Theme.of(context).colorScheme.error
+                        : null,
+                  ),
+                  tooltip: _isListening ? 'Stop listening' : 'Voice capture',
+                ),
+              ),
+              const SizedBox(width: 4),
+              FloatingActionButton.small(
+                onPressed: _textController.text.trim().isEmpty
+                    ? null
+                    : _sendThought,
+                elevation: 0,
+                child: const Icon(Icons.send),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
