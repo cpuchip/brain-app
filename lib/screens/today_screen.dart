@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/becoming_api.dart';
 import '../services/brain_api.dart';
 import '../services/brain_service.dart';
+import '../services/widget_service.dart';
 import 'edit_entry_screen.dart';
 
 class TodayScreen extends StatefulWidget {
@@ -61,6 +62,9 @@ class TodayScreenState extends State<TodayScreen> {
         _loading = false;
         _lastFetched = DateTime.now();
       });
+
+      // Push practice data to widget
+      WidgetService().updatePracticeWidget(_practices!).catchError((_) {});
     } catch (e) {
       if (!mounted) return;
       setState(() {

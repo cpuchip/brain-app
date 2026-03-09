@@ -1,10 +1,12 @@
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'brain_api.dart';
+import 'becoming_api.dart';
 
 /// Manages home screen widget data updates.
 class WidgetService {
   static const _widgetName = 'BrainWidgetProvider';
+  static const _practiceWidgetName = 'PracticeWidgetProvider';
 
   /// Update widget data with current actionable entries.
   Future<void> updateWidget(List<HistoryEntry> entries) async {
@@ -49,5 +51,41 @@ class WidgetService {
     if (diff <= 0) return 'today';
     if (diff == 1) return 'tmrw';
     return DateFormat('MMM d').format(due);
+  }
+
+  /// Update practice widget with daily summary data.
+  /// Filters by saved category preference.
+  Future<void> updatePracticeWidget(List<DailySummary> summaries) async {
+    // Read current filter
+    final filter = await HomeWidget.getWidgetData<String>('practice_filter') ?? 'All';
+
+    // Filter to non-memorize practices matching category
+    var practices = summaries
+        .where((s) => s.practiceType != 'memorize')
+        .toList();
+    if (filter != 'All') {
+      practices = practices.where((s) => s.category == filter).toList();
+    }
+
+    // Limit to 5 slots
+    final display = practices.take(5).toList();
+
+    await HomeWidget.saveWidgetData('practice_count', display.length);
+    for (var i = 0; i < 5; i++) {
+      if (i < display.length) {
+        final p = display[i];
+        await HomeWidget.saveWidgetData('practice_${i}_id', p.practiceId);
+        await HomeWidget.saveWidgetData('practice_${i}_name', p.practiceName);
+        await HomeWidget.saveWidgetData('practice_${i}_target_sets', p.targetSets);
+        await HomeWidget.saveWidgetData('practice_${i}_completed_sets', p.completedSets);
+      } else {
+        await HomeWidget.saveWidgetData('practice_${i}_id', 0);
+        await HomeWidget.saveWidgetData('practice_${i}_name', '');
+        await HomeWidget.saveWidgetData('practice_${i}_target_sets', 1);
+        await HomeWidget.saveWidgetData('practice_${i}_completed_sets', 0);
+      }
+    }
+
+    await HomeWidget.updateWidget(name: _practiceWidgetName);
   }
 }

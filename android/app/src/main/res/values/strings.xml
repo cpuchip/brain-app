@@ -2,4 +2,5 @@
 <resources>
     <string name="widget_description">Your actionable brain entries at a glance. Quick-add thoughts with text or voice.</string>
     <string name="widget_mini_description">Compact quick-add bar: text or voice capture.</string>
+    <string name="widget_practice_description">Track daily practices at a glance. Log sets, filter by category.</string>
 </resources>

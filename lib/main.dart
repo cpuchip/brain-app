@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/quick_add_screen.dart';
+import 'services/becoming_api.dart';
 import 'services/notification_service.dart';
 import 'services/offline_queue.dart';
 import 'services/brain_api.dart';
+import 'services/widget_service.dart';
 
 /// Global navigator key for notification tap navigation.
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -90,6 +93,64 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
     } catch (_) {
       // API failure — visual already updated, will resync on next refresh
     }
+  }
+
+  if (uri.host == 'practice-log' && uri.pathSegments.isNotEmpty) {
+    final practiceId = int.tryParse(uri.pathSegments.first);
+    if (practiceId == null) return;
+
+    // Optimistic: bump completed_sets in widget prefs
+    final count = await HomeWidget.getWidgetData<int>('practice_count') ?? 0;
+    for (var i = 0; i < count; i++) {
+      final id = await HomeWidget.getWidgetData<int>('practice_${i}_id');
+      if (id == practiceId) {
+        final completed = await HomeWidget.getWidgetData<int>('practice_${i}_completed_sets') ?? 0;
+        await HomeWidget.saveWidgetData('practice_${i}_completed_sets', completed + 1);
+        break;
+      }
+    }
+    await HomeWidget.updateWidget(name: 'PracticeWidgetProvider');
+
+    // Call the API
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+    final token = prefs.getString('brain_token') ?? '';
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    try {
+      final api = BecomingApi(baseUrl: url, token: token);
+      await api.logPractice(practiceId: practiceId, date: today, sets: 1);
+    } catch (_) {}
+  }
+
+  if (uri.host == 'practice-undo' && uri.pathSegments.isNotEmpty) {
+    final practiceId = int.tryParse(uri.pathSegments.first);
+    if (practiceId == null) return;
+
+    // Optimistic: decrement completed_sets in widget prefs
+    final count = await HomeWidget.getWidgetData<int>('practice_count') ?? 0;
+    for (var i = 0; i < count; i++) {
+      final id = await HomeWidget.getWidgetData<int>('practice_${i}_id');
+      if (id == practiceId) {
+        final completed = await HomeWidget.getWidgetData<int>('practice_${i}_completed_sets') ?? 0;
+        if (completed > 0) {
+          await HomeWidget.saveWidgetData('practice_${i}_completed_sets', completed - 1);
+        }
+        break;
+      }
+    }
+    await HomeWidget.updateWidget(name: 'PracticeWidgetProvider');
+
+    // Call the API
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+    final token = prefs.getString('brain_token') ?? '';
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    try {
+      final api = BecomingApi(baseUrl: url, token: token);
+      await api.deleteLatestLog(practiceId: practiceId, date: today);
+    } catch (_) {}
   }
 }
 
