@@ -13,22 +13,14 @@ class WidgetService {
     final actions = entries
         .where((e) => e.isActionable && !e.isDone)
         .where((e) => _isDueSoon(e))
-        .take(4)
         .toList();
 
     await HomeWidget.saveWidgetData('action_count', actions.length);
-    for (var i = 0; i < 4; i++) {
-      if (i < actions.length) {
-        await HomeWidget.saveWidgetData('entry_${i}_title', actions[i].title ?? '');
-        await HomeWidget.saveWidgetData('entry_${i}_due', _relativeDue(actions[i]));
-        await HomeWidget.saveWidgetData('entry_${i}_id', actions[i].id);
-        await HomeWidget.saveWidgetData('entry_${i}_done', false);
-      } else {
-        await HomeWidget.saveWidgetData('entry_${i}_title', '');
-        await HomeWidget.saveWidgetData('entry_${i}_due', '');
-        await HomeWidget.saveWidgetData('entry_${i}_id', '');
-        await HomeWidget.saveWidgetData('entry_${i}_done', false);
-      }
+    for (var i = 0; i < actions.length; i++) {
+      await HomeWidget.saveWidgetData('entry_${i}_title', actions[i].title ?? '');
+      await HomeWidget.saveWidgetData('entry_${i}_due', _relativeDue(actions[i]));
+      await HomeWidget.saveWidgetData('entry_${i}_id', actions[i].id);
+      await HomeWidget.saveWidgetData('entry_${i}_done', false);
     }
 
     await HomeWidget.updateWidget(name: _widgetName);

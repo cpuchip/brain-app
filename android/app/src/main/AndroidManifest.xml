@@ -104,6 +104,10 @@
         <service android:name=".PracticeWidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
+        <!-- RemoteViewsService for scrollable brain widget list -->
+        <service android:name=".BrainWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

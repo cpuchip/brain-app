@@ -18,10 +18,13 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🧠 Brain"
+            android:text="Brain"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:drawableStart="@android:drawable/ic_menu_recent_history"
+            android:drawableTint="#BB86FC"
+            android:drawablePadding="6dp" />
 
         <ImageButton
             android:id="@+id/btn_refresh"
@@ -60,160 +63,18 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="center"
-        android:text="All clear ✨"
+        android:text="All clear"
         android:textColor="#9E9E9E"
         android:textSize="13sp"
         android:visibility="gone" />
 
-    <!-- Entry 0 -->
-    <LinearLayout
-        android:id="@+id/entry_0"
+    <!-- Scrollable entry list -->
+    <ListView
+        android:id="@+id/entry_list"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingTop="6dp"
-        android:visibility="gone">
-
-        <ImageButton
-            android:id="@+id/entry_0_check"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginEnd="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Mark done"
-            android:src="@drawable/ic_check_circle_outline" />
-
-        <TextView
-            android:id="@+id/entry_0_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#E0E0E0"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/entry_0_due"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:textColor="#BB86FC"
-            android:textSize="11sp" />
-    </LinearLayout>
-
-    <!-- Entry 1 -->
-    <LinearLayout
-        android:id="@+id/entry_1"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:visibility="gone">
-
-        <ImageButton
-            android:id="@+id/entry_1_check"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginEnd="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Mark done"
-            android:src="@drawable/ic_check_circle_outline" />
-
-        <TextView
-            android:id="@+id/entry_1_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#E0E0E0"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/entry_1_due"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:textColor="#BB86FC"
-            android:textSize="11sp" />
-    </LinearLayout>
-
-    <!-- Entry 2 -->
-    <LinearLayout
-        android:id="@+id/entry_2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:visibility="gone">
-
-        <ImageButton
-            android:id="@+id/entry_2_check"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginEnd="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Mark done"
-            android:src="@drawable/ic_check_circle_outline" />
-
-        <TextView
-            android:id="@+id/entry_2_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#E0E0E0"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/entry_2_due"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:textColor="#BB86FC"
-            android:textSize="11sp" />
-    </LinearLayout>
-
-    <!-- Entry 3 -->
-    <LinearLayout
-        android:id="@+id/entry_3"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:visibility="gone">
-
-        <ImageButton
-            android:id="@+id/entry_3_check"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginEnd="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Mark done"
-            android:src="@drawable/ic_check_circle_outline" />
-
-        <TextView
-            android:id="@+id/entry_3_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#E0E0E0"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/entry_3_due"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:textColor="#BB86FC"
-            android:textSize="11sp" />
-    </LinearLayout>
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="none" />
 </LinearLayout>

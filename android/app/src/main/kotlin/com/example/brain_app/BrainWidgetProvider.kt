@@ -10,6 +10,7 @@ import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
+import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
 import android.app.PendingIntent
 import android.content.Intent
 
@@ -34,6 +35,8 @@ class BrainWidgetProvider : HomeWidgetProvider() {
                 SizeF(250f, 110f) to standardView    // 4x2+
             )
             appWidgetManager.updateAppWidget(widgetId, RemoteViews(viewMapping))
+            // Trigger RemoteViewsFactory.onDataSetChanged()
+            appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.entry_list)
         }
     }
 
@@ -102,65 +105,28 @@ class BrainWidgetProvider : HomeWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.brain_widget)
         val count = widgetData.getInt("action_count", 0)
 
-        data class EntryRow(
-            val rowId: Int,
-            val checkId: Int,
-            val titleId: Int,
-            val dueId: Int
-        )
-
-        val entryRows = arrayOf(
-            EntryRow(R.id.entry_0, R.id.entry_0_check, R.id.entry_0_title, R.id.entry_0_due),
-            EntryRow(R.id.entry_1, R.id.entry_1_check, R.id.entry_1_title, R.id.entry_1_due),
-            EntryRow(R.id.entry_2, R.id.entry_2_check, R.id.entry_2_title, R.id.entry_2_due),
-            EntryRow(R.id.entry_3, R.id.entry_3_check, R.id.entry_3_title, R.id.entry_3_due),
-        )
-
-        for (i in 0 until 4) {
-            val row = entryRows[i]
-            if (i < count) {
-                val title = widgetData.getString("entry_${i}_title", "") ?: ""
-                val due = widgetData.getString("entry_${i}_due", "") ?: ""
-                val entryId = widgetData.getString("entry_${i}_id", "") ?: ""
-
-                views.setViewVisibility(row.rowId, View.VISIBLE)
-                views.setTextViewText(row.titleId, title)
-                views.setTextViewText(row.dueId, due)
-
-                // Swap checkbox drawable based on done state
-                val isDone = widgetData.getBoolean("entry_${i}_done", false)
-                views.setImageViewResource(row.checkId,
-                    if (isDone) R.drawable.ic_check_circle else R.drawable.ic_check_circle_outline)
-
-                if (entryId.isNotEmpty()) {
-                    // Tap title area → open entry for editing
-                    val openIntent = Intent(context, MainActivity::class.java).apply {
-                        action = "OPEN_ENTRY"
-                        data = Uri.parse("brainapp://entry/$entryId")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }
-                    val openPending = PendingIntent.getActivity(
-                        context, i, openIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    views.setOnClickPendingIntent(row.titleId, openPending)
-                    views.setOnClickPendingIntent(row.dueId, openPending)
-
-                    // Checkbox → mark done via background callback (no app flash)
-                    val donePending = HomeWidgetBackgroundIntent.getBroadcast(
-                        context, Uri.parse("brainapp://done/$entryId"))
-                    views.setOnClickPendingIntent(row.checkId, donePending)
-                }
-            } else {
-                views.setViewVisibility(row.rowId, View.GONE)
-            }
+        // Empty state vs list
+        if (count > 0) {
+            views.setViewVisibility(R.id.empty_text, View.GONE)
+            views.setViewVisibility(R.id.entry_list, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.empty_text, View.VISIBLE)
+            views.setViewVisibility(R.id.entry_list, View.GONE)
         }
 
-        // Empty state
-        views.setViewVisibility(
-            R.id.empty_text,
-            if (count > 0) View.GONE else View.VISIBLE
-        )
+        // Set up ListView adapter
+        val serviceIntent = Intent(context, BrainWidgetService::class.java)
+        views.setRemoteAdapter(R.id.entry_list, serviceIntent)
+
+        // Pending intent template for list item clicks (must be mutable for fill-in)
+        val templateIntent = Intent(context, HomeWidgetBackgroundReceiver::class.java)
+        val pendingFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val templatePending = PendingIntent.getBroadcast(context, 600, templateIntent, pendingFlags)
+        views.setPendingIntentTemplate(R.id.entry_list, templatePending)
 
         // Refresh button — background callback (no app flash)
         val refreshPending = HomeWidgetBackgroundIntent.getBroadcast(
