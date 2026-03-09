@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,11 +68,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(() => setState(() {}));
     _loadSttPrefs();
+    _loadRecentThoughts();
     _initServices();
     _initSpeech();
     _initNotifications();
     _initOfflineQueue();
     _initWidgetClicks();
+  }
+
+  /// Restore recent captures from SharedPreferences (last 24h, max 20).
+  Future<void> _loadRecentThoughts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('recent_thoughts');
+    if (raw == null) return;
+    try {
+      final list = (jsonDecode(raw) as List)
+          .map((e) => PendingThought.fromJson(e as Map<String, dynamic>))
+          .where((t) =>
+              DateTime.now().difference(t.timestamp).inHours < 24)
+          .toList();
+      if (mounted && list.isNotEmpty) {
+        setState(() => _thoughts.addAll(list));
+      }
+    } catch (_) {}
+  }
+
+  /// Persist recent thoughts to SharedPreferences (keep last 20).
+  Future<void> _saveThoughts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final toSave = _thoughts.take(20).map((t) => t.toJson()).toList();
+    await prefs.setString('recent_thoughts', jsonEncode(toSave));
   }
 
   void _initWidgetClicks() {
@@ -272,6 +298,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             }
           }
         });
+        _saveThoughts();
         // Speak back the result in driving mode
         if (_drivingMode) {
           _speech.speak(
@@ -368,6 +395,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         curve: Curves.easeOut,
       );
     }
+
+    _saveThoughts();
   }
 
   Future<void> _editThought(PendingThought thought) async {

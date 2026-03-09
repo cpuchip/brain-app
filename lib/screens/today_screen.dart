@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import '../services/becoming_api.dart';
 import '../services/brain_api.dart';
@@ -458,41 +459,54 @@ class _MemorizeSectionState extends State<_MemorizeSection> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Try to recall from memory...',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.outline,
-            ),
-          ),
-          const SizedBox(height: 12),
 
-          if (!_revealed)
+          if (!_revealed) ...[
+            Text(
+              'Try to recall from memory...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 12),
             Center(
               child: OutlinedButton.icon(
                 onPressed: () => setState(() => _revealed = true),
                 icon: const Icon(Icons.visibility),
                 label: const Text('Show answer'),
               ),
-            )
-          else ...[
-            // Quality rating buttons
-            Text(
-              'How well did you remember?',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.outline,
-              ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _qualityButton('Again', 1, Colors.red),
-                const SizedBox(width: 8),
-                _qualityButton('Hard', 2, Colors.orange),
-                const SizedBox(width: 8),
-                _qualityButton('Good', 4, Colors.green),
-                const SizedBox(width: 8),
-                _qualityButton('Easy', 5, Colors.blue),
-              ],
+          ] else ...[
+            // Show scripture body text
+            if (card.description.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: MarkdownBody(
+                  data: card.description,
+                  styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                    p: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              )
+            else
+              Text(
+                'No body text available.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.outline,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            const SizedBox(height: 12),
+            Center(
+              child: FilledButton.icon(
+                onPressed: _submitting ? null : () => _showRatingDialog(card),
+                icon: const Icon(Icons.rate_review),
+                label: const Text('Rate recall'),
+              ),
             ),
           ],
         ],
@@ -500,19 +514,58 @@ class _MemorizeSectionState extends State<_MemorizeSection> {
     );
   }
 
-  Widget _qualityButton(String label, int quality, Color color) {
+  Future<void> _showRatingDialog(Practice card) async {
+    final quality = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final colorScheme = theme.colorScheme;
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'How well did you remember?',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _dialogQualityButton(ctx, 'Again', 1, Colors.red),
+                    const SizedBox(width: 8),
+                    _dialogQualityButton(ctx, 'Hard', 2, Colors.orange),
+                    const SizedBox(width: 8),
+                    _dialogQualityButton(ctx, 'Good', 4, Colors.green),
+                    const SizedBox(width: 8),
+                    _dialogQualityButton(ctx, 'Easy', 5, Colors.blue),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (quality != null) {
+      _submitReview(quality);
+    }
+  }
+
+  Widget _dialogQualityButton(BuildContext ctx, String label, int quality, Color color) {
     return Expanded(
       child: FilledButton.tonal(
-        onPressed: _submitting ? null : () => _submitReview(quality),
+        onPressed: () => Navigator.of(ctx).pop(quality),
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 8),
         ),
-        child: _submitting
-            ? const SizedBox(
-                width: 16, height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Text(label, style: TextStyle(fontSize: 12, color: color)),
+        child: Text(label, style: TextStyle(fontSize: 12, color: color)),
       ),
     );
   }

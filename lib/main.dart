@@ -152,6 +152,27 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
       await api.deleteLatestLog(practiceId: practiceId, date: today);
     } catch (_) {}
   }
+
+  if (uri.host == 'refresh') {
+    // Fetch fresh data from API and update all widgets
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+    final token = prefs.getString('brain_token') ?? '';
+    final brainUrl = prefs.getString('brain_direct_url') ?? '';
+
+    try {
+      final api = BrainApi(baseUrl: url, token: token, brainUrl: brainUrl);
+      final entries = await api.getHistory(limit: 50);
+      await WidgetService().updateWidget(entries);
+    } catch (_) {}
+
+    try {
+      final api = BecomingApi(baseUrl: url, token: token);
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final practices = await api.getDailySummary(today);
+      await WidgetService().updatePracticeWidget(practices);
+    } catch (_) {}
+  }
 }
 
 /// Second entrypoint for the transparent QuickAddActivity.

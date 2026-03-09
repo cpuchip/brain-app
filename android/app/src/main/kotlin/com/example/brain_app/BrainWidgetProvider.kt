@@ -68,16 +68,9 @@ class BrainWidgetProvider : HomeWidgetProvider() {
     private fun buildMiniView(context: Context): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.brain_widget_mini)
 
-        // Brain icon → launch main app history view
-        val brainIntent = Intent(context, MainActivity::class.java).apply {
-            action = "REFRESH_WIDGET"
-            data = android.net.Uri.parse("brainapp://refresh")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val brainPending = PendingIntent.getActivity(
-            context, 103, brainIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        // Brain icon → background refresh (no app flash)
+        val brainPending = HomeWidgetBackgroundIntent.getBroadcast(
+            context, Uri.parse("brainapp://refresh"))
         views.setOnClickPendingIntent(R.id.btn_brain, brainPending)
 
         // + button → text mode quick-add
@@ -169,16 +162,9 @@ class BrainWidgetProvider : HomeWidgetProvider() {
             if (count > 0) View.GONE else View.VISIBLE
         )
 
-        // Refresh button — opens main app (triggers data load + widget update)
-        val refreshIntent = Intent(context, MainActivity::class.java).apply {
-            action = "REFRESH_WIDGET"
-            data = Uri.parse("brainapp://refresh")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val refreshPending = PendingIntent.getActivity(
-            context, 102, refreshIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        // Refresh button — background callback (no app flash)
+        val refreshPending = HomeWidgetBackgroundIntent.getBroadcast(
+            context, Uri.parse("brainapp://refresh"))
         views.setOnClickPendingIntent(R.id.btn_refresh, refreshPending)
 
         // Mic button — launches transparent quick-add in voice mode

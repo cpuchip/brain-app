@@ -72,6 +72,37 @@ class PendingThought {
     this.sent = false,
     this.error,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'text': text,
+        'timestamp': timestamp.toIso8601String(),
+        'sent': sent,
+        if (result != null)
+          'result': {
+            'thought_id': result!.thoughtId,
+            'entry_id': result!.entryId,
+            'category': result!.category,
+            'title': result!.title,
+            'confidence': result!.confidence,
+            'tags': result!.tags,
+          },
+      };
+
+  factory PendingThought.fromJson(Map<String, dynamic> json) {
+    BrainResult? result;
+    if (json['result'] != null) {
+      result = BrainResult.fromJson(json['result'] as Map<String, dynamic>);
+    }
+    return PendingThought(
+      id: json['id'] ?? '',
+      text: json['text'] ?? '',
+      timestamp:
+          DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
+      sent: json['sent'] ?? false,
+      result: result,
+    );
+  }
 }
 
 /// Connection state.
