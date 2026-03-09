@@ -99,13 +99,13 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
     final practiceId = int.tryParse(uri.pathSegments.first);
     if (practiceId == null) return;
 
-    // Optimistic: bump completed_sets in widget prefs
-    final count = await HomeWidget.getWidgetData<int>('practice_count') ?? 0;
+    // Optimistic: bump completed_sets in shared (unfiltered) practice data
+    final count = await HomeWidget.getWidgetData<int>('all_practice_count') ?? 0;
     for (var i = 0; i < count; i++) {
-      final id = await HomeWidget.getWidgetData<int>('practice_${i}_id');
+      final id = await HomeWidget.getWidgetData<int>('all_practice_${i}_id');
       if (id == practiceId) {
-        final completed = await HomeWidget.getWidgetData<int>('practice_${i}_completed_sets') ?? 0;
-        await HomeWidget.saveWidgetData('practice_${i}_completed_sets', completed + 1);
+        final completed = await HomeWidget.getWidgetData<int>('all_practice_${i}_completed_sets') ?? 0;
+        await HomeWidget.saveWidgetData('all_practice_${i}_completed_sets', completed + 1);
         break;
       }
     }
@@ -127,14 +127,14 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
     final practiceId = int.tryParse(uri.pathSegments.first);
     if (practiceId == null) return;
 
-    // Optimistic: decrement completed_sets in widget prefs
-    final count = await HomeWidget.getWidgetData<int>('practice_count') ?? 0;
+    // Optimistic: decrement completed_sets in shared (unfiltered) practice data
+    final count = await HomeWidget.getWidgetData<int>('all_practice_count') ?? 0;
     for (var i = 0; i < count; i++) {
-      final id = await HomeWidget.getWidgetData<int>('practice_${i}_id');
+      final id = await HomeWidget.getWidgetData<int>('all_practice_${i}_id');
       if (id == practiceId) {
-        final completed = await HomeWidget.getWidgetData<int>('practice_${i}_completed_sets') ?? 0;
+        final completed = await HomeWidget.getWidgetData<int>('all_practice_${i}_completed_sets') ?? 0;
         if (completed > 0) {
-          await HomeWidget.saveWidgetData('practice_${i}_completed_sets', completed - 1);
+          await HomeWidget.saveWidgetData('all_practice_${i}_completed_sets', completed - 1);
         }
         break;
       }
@@ -175,36 +175,25 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
   }
 
   if (uri.host == 'practice-cycle-filter') {
-    // Cycle through available categories for the practice widget
-    final prefs = await SharedPreferences.getInstance();
-    final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
-    final token = prefs.getString('brain_token') ?? '';
+    // Extract per-instance widgetId from URI path (e.g. brainapp://practice-cycle-filter/42)
+    final widgetIdStr = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    final filterKey = widgetIdStr != null
+        ? 'practice_filter_$widgetIdStr'
+        : 'practice_filter';
 
-    try {
-      final api = BecomingApi(baseUrl: url, token: token);
-      final practices = await api.getPractices();
+    // Read cached categories (written by WidgetService.updatePracticeWidget)
+    final catsStr = await HomeWidget.getWidgetData<String>('practice_categories') ?? 'All';
+    final sorted = catsStr.split(',');
 
-      // Build category list: "All" + unique non-memorize categories
-      final cats = <String>{'All'};
-      for (final p in practices) {
-        if (p.category.isNotEmpty && p.type != 'memorize') {
-          cats.add(p.category);
-        }
-      }
-      final sorted = ['All', ...(cats.toList()..remove('All'))..sort()];
+    // Get current filter for THIS widget instance, advance to next
+    final current = await HomeWidget.getWidgetData<String>(filterKey) ?? 'All';
+    final idx = sorted.indexOf(current);
+    final next = sorted[(idx + 1) % sorted.length];
 
-      // Get current filter, advance to next
-      final current = await HomeWidget.getWidgetData<String>('practice_filter') ?? 'All';
-      final idx = sorted.indexOf(current);
-      final next = sorted[(idx + 1) % sorted.length];
+    await HomeWidget.saveWidgetData(filterKey, next);
 
-      await HomeWidget.saveWidgetData('practice_filter', next);
-
-      // Refresh practice widget data with new filter
-      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final daily = await api.getDailySummary(today);
-      await WidgetService().updatePracticeWidget(daily);
-    } catch (_) {}
+    // Trigger all practice widget instances to re-render
+    await HomeWidget.updateWidget(name: 'PracticeWidgetProvider');
   }
 }
 

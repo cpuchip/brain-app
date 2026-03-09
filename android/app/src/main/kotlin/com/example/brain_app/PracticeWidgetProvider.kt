@@ -22,38 +22,46 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences
     ) {
         appWidgetIds.forEach { widgetId ->
-            val views = buildPracticeView(context, widgetData)
+            val views = buildPracticeView(context, widgetData, widgetId)
             appWidgetManager.updateAppWidget(widgetId, views)
             // Trigger RemoteViewsFactory.onDataSetChanged()
             appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.practice_list)
         }
     }
 
-    private fun buildPracticeView(context: Context, widgetData: SharedPreferences): RemoteViews {
+    private fun buildPracticeView(context: Context, widgetData: SharedPreferences, widgetId: Int): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.practice_widget)
-        val count = widgetData.getInt("practice_count", 0)
-        val filter = widgetData.getString("practice_filter", "All") ?: "All"
 
-        // Header: category name (tappable → cycle filter via background callback)
+        // Per-instance filter (fallback to legacy global key, then "All")
+        val filter = widgetData.getString("practice_filter_$widgetId", null)
+            ?: widgetData.getString("practice_filter", "All")
+            ?: "All"
+
+        // Header: category name (tappable → cycle filter for THIS instance)
         views.setTextViewText(R.id.practice_category, if (filter == "All") "All Practices" else filter)
 
         val filterPending = HomeWidgetBackgroundIntent.getBroadcast(
-            context, Uri.parse("brainapp://practice-cycle-filter"))
+            context, Uri.parse("brainapp://practice-cycle-filter/$widgetId"))
         views.setOnClickPendingIntent(R.id.practice_category, filterPending)
 
-        // Count completed
+        // Read ALL practices and filter locally
+        val totalCount = widgetData.getInt("all_practice_count", 0)
+        var filteredCount = 0
         var completedCount = 0
-        for (i in 0 until count) {
-            val targetSets = widgetData.getInt("practice_${i}_target_sets", 1)
-            val completedSets = widgetData.getInt("practice_${i}_completed_sets", 0)
+        for (i in 0 until totalCount) {
+            val cat = widgetData.getString("all_practice_${i}_category", "") ?: ""
+            if (filter != "All" && cat != filter) continue
+            filteredCount++
+            val targetSets = widgetData.getInt("all_practice_${i}_target_sets", 1)
+            val completedSets = widgetData.getInt("all_practice_${i}_completed_sets", 0)
             if (completedSets >= targetSets) completedCount++
         }
 
         // Progress text
-        views.setTextViewText(R.id.practice_progress, "$completedCount/$count")
+        views.setTextViewText(R.id.practice_progress, "$completedCount/$filteredCount")
 
         // Empty state vs list
-        if (count > 0) {
+        if (filteredCount > 0) {
             views.setViewVisibility(R.id.practice_empty, View.GONE)
             views.setViewVisibility(R.id.practice_list, View.VISIBLE)
         } else {
@@ -61,8 +69,11 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
             views.setViewVisibility(R.id.practice_list, View.GONE)
         }
 
-        // Set up ListView adapter
-        val serviceIntent = Intent(context, PracticeWidgetService::class.java)
+        // Set up ListView adapter — unique URI per widget so Android creates separate factories
+        val serviceIntent = Intent(context, PracticeWidgetService::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            data = Uri.parse("practicewidget://instance/$widgetId")
+        }
         views.setRemoteAdapter(R.id.practice_list, serviceIntent)
 
         // Pending intent template for list item clicks (must be mutable for fill-in)
@@ -72,7 +83,7 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
-        val templatePending = PendingIntent.getBroadcast(context, 500, templateIntent, flags)
+        val templatePending = PendingIntent.getBroadcast(context, 500 + widgetId, templateIntent, flags)
         views.setPendingIntentTemplate(R.id.practice_list, templatePending)
 
         return views

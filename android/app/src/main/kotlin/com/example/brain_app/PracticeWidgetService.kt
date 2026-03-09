@@ -1,5 +1,6 @@
 package com.example.brain_app
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -9,11 +10,18 @@ import android.widget.RemoteViewsService
 
 class PracticeWidgetService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
-        return PracticeViewsFactory(applicationContext)
+        val widgetId = intent.getIntExtra(
+            AppWidgetManager.EXTRA_APPWIDGET_ID,
+            AppWidgetManager.INVALID_APPWIDGET_ID
+        )
+        return PracticeViewsFactory(applicationContext, widgetId)
     }
 }
 
-class PracticeViewsFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
+class PracticeViewsFactory(
+    private val context: Context,
+    private val widgetId: Int
+) : RemoteViewsService.RemoteViewsFactory {
 
     private data class PracticeItem(
         val id: Int,
@@ -28,13 +36,22 @@ class PracticeViewsFactory(private val context: Context) : RemoteViewsService.Re
 
     override fun onDataSetChanged() {
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
-        val count = prefs.getInt("practice_count", 0)
-        items = (0 until count).map { i ->
+
+        // Read per-instance filter (fallback to legacy global, then "All")
+        val filter = prefs.getString("practice_filter_$widgetId", null)
+            ?: prefs.getString("practice_filter", "All")
+            ?: "All"
+
+        // Load ALL practices then filter locally
+        val totalCount = prefs.getInt("all_practice_count", 0)
+        items = (0 until totalCount).mapNotNull { i ->
+            val cat = prefs.getString("all_practice_${i}_category", "") ?: ""
+            if (filter != "All" && cat != filter) return@mapNotNull null
             PracticeItem(
-                id = prefs.getInt("practice_${i}_id", 0),
-                name = prefs.getString("practice_${i}_name", "") ?: "",
-                targetSets = prefs.getInt("practice_${i}_target_sets", 1),
-                completedSets = prefs.getInt("practice_${i}_completed_sets", 0)
+                id = prefs.getInt("all_practice_${i}_id", 0),
+                name = prefs.getString("all_practice_${i}_name", "") ?: "",
+                targetSets = prefs.getInt("all_practice_${i}_target_sets", 1),
+                completedSets = prefs.getInt("all_practice_${i}_completed_sets", 0)
             )
         }
     }

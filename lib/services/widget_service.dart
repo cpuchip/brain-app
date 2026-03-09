@@ -46,30 +46,31 @@ class WidgetService {
   }
 
   /// Update practice widget with daily summary data.
-  /// Filters by saved category preference.
+  /// Pushes ALL non-memorize practices unfiltered — each widget instance
+  /// filters locally by its per-instance category preference.
   Future<void> updatePracticeWidget(List<DailySummary> summaries) async {
-    // Read current filter
-    final filter = await HomeWidget.getWidgetData<String>('practice_filter') ?? 'All';
-
-    // Filter to non-memorize practices matching category
-    var practices = summaries
+    // Push all non-memorize practices (filtering happens per-widget in Kotlin)
+    final practices = summaries
         .where((s) => s.practiceType != 'memorize')
         .toList();
-    if (filter != 'All') {
-      practices = practices.where((s) => s.category == filter).toList();
+
+    await HomeWidget.saveWidgetData('all_practice_count', practices.length);
+    for (var i = 0; i < practices.length; i++) {
+      final p = practices[i];
+      await HomeWidget.saveWidgetData('all_practice_${i}_id', p.practiceId);
+      await HomeWidget.saveWidgetData('all_practice_${i}_name', p.practiceName);
+      await HomeWidget.saveWidgetData('all_practice_${i}_category', p.category);
+      await HomeWidget.saveWidgetData('all_practice_${i}_target_sets', p.targetSets);
+      await HomeWidget.saveWidgetData('all_practice_${i}_completed_sets', p.completedSets);
     }
 
-    // Save all practices (widget ListView is scrollable)
-    final display = practices;
-
-    await HomeWidget.saveWidgetData('practice_count', display.length);
-    for (var i = 0; i < display.length; i++) {
-      final p = display[i];
-      await HomeWidget.saveWidgetData('practice_${i}_id', p.practiceId);
-      await HomeWidget.saveWidgetData('practice_${i}_name', p.practiceName);
-      await HomeWidget.saveWidgetData('practice_${i}_target_sets', p.targetSets);
-      await HomeWidget.saveWidgetData('practice_${i}_completed_sets', p.completedSets);
+    // Save available categories for the cycle-filter
+    final cats = <String>{'All'};
+    for (final p in practices) {
+      if (p.category.isNotEmpty) cats.add(p.category);
     }
+    final sorted = ['All', ...(cats.toList()..remove('All'))..sort()];
+    await HomeWidget.saveWidgetData('practice_categories', sorted.join(','));
 
     await HomeWidget.updateWidget(name: _practiceWidgetName);
   }
