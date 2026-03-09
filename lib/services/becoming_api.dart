@@ -42,16 +42,42 @@ class BecomingApi {
     return data.map((e) => Practice.fromJson(e)).toList();
   }
 
-  /// Mark a practice complete for today.
-  Future<Practice> completePractice(int practiceId) async {
+  /// Log a practice set for today (creates a log entry, does NOT retire the practice).
+  Future<void> logPractice({
+    required int practiceId,
+    required String date,
+    int? sets,
+    int? reps,
+  }) async {
+    final body = <String, dynamic>{
+      'practice_id': practiceId,
+      'date': date,
+    };
+    if (sets != null) body['sets'] = sets;
+    if (reps != null) body['reps'] = reps;
+
     final resp = await http.post(
-      Uri.parse('$baseUrl/api/practices/$practiceId/complete'),
+      Uri.parse('$baseUrl/api/logs'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    if (resp.statusCode != 201) {
+      throw Exception('Log practice failed: ${resp.statusCode}');
+    }
+  }
+
+  /// Undo the most recent log for a practice on a given date.
+  Future<void> deleteLatestLog({
+    required int practiceId,
+    required String date,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$baseUrl/api/logs/latest?practice_id=$practiceId&date=$date'),
       headers: _headers,
     );
-    if (resp.statusCode != 200) {
-      throw Exception('Complete practice failed: ${resp.statusCode}');
+    if (resp.statusCode != 204) {
+      throw Exception('Undo log failed: ${resp.statusCode}');
     }
-    return Practice.fromJson(jsonDecode(resp.body));
   }
 
   /// Get memorize cards due for review on a date.
@@ -257,6 +283,32 @@ class DailySummary {
 
   /// Whether this practice has been completed today (has at least one log).
   bool get isCompletedToday => logCount > 0;
+
+  /// Number of sets completed today (total_sets if available, else log_count).
+  int get completedSets => totalSets ?? logCount;
+
+  /// Target number of sets from practice config (default 1).
+  int get targetSets {
+    try {
+      final data = jsonDecode(config) as Map<String, dynamic>;
+      return (data['target_sets'] as num?)?.toInt() ?? 1;
+    } catch (_) {
+      return 1;
+    }
+  }
+
+  /// Target reps per set from practice config.
+  int? get targetReps {
+    try {
+      final data = jsonDecode(config) as Map<String, dynamic>;
+      return (data['target_reps'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether all target sets are completed.
+  bool get isFullyComplete => completedSets >= targetSets;
 
   factory DailySummary.fromJson(Map<String, dynamic> json) => DailySummary(
         practiceId: json['practice_id'] as int,

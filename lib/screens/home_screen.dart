@@ -605,11 +605,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          padding: EdgeInsets.only(
+          padding: const EdgeInsets.only(
             left: 16,
             right: 8,
             top: 8,
-            bottom: MediaQuery.of(context).viewPadding.bottom + 8,
+            bottom: 8,
           ),
           child: Row(
             children: [

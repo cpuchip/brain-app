@@ -86,7 +86,7 @@ class TodayScreenState extends State<TodayScreen> {
     }
   }
 
-  Future<void> _completePractice(DailySummary practice) async {
+  Future<void> _logPracticeSet(DailySummary practice) async {
     // Optimistic update
     setState(() {
       final idx = _practices?.indexWhere((p) => p.practiceId == practice.practiceId);
@@ -103,7 +103,7 @@ class TodayScreenState extends State<TodayScreen> {
           startDate: old.startDate,
           createdAt: old.createdAt,
           logCount: old.logCount + 1,
-          totalSets: old.totalSets,
+          totalSets: (old.totalSets ?? 0) + 1,
           totalReps: old.totalReps,
           lastValue: old.lastValue,
           lastNotes: old.lastNotes,
@@ -116,14 +116,68 @@ class TodayScreenState extends State<TodayScreen> {
     });
 
     try {
-      await widget.becomingApi.completePractice(practice.practiceId);
+      await widget.becomingApi.logPractice(
+        practiceId: practice.practiceId,
+        date: _today,
+        sets: 1,
+        reps: practice.targetReps,
+      );
     } catch (e) {
       // Revert on failure
       if (mounted) {
         _loadAll();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to complete: $e'),
+            content: Text('Failed to log: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _undoPracticeSet(DailySummary practice) async {
+    if (practice.completedSets <= 0) return;
+
+    // Optimistic update
+    setState(() {
+      final idx = _practices?.indexWhere((p) => p.practiceId == practice.practiceId);
+      if (idx != null && idx >= 0) {
+        final old = _practices![idx];
+        _practices![idx] = DailySummary(
+          practiceId: old.practiceId,
+          practiceName: old.practiceName,
+          practiceType: old.practiceType,
+          category: old.category,
+          config: old.config,
+          status: old.status,
+          endDate: old.endDate,
+          startDate: old.startDate,
+          createdAt: old.createdAt,
+          logCount: (old.logCount - 1).clamp(0, old.logCount),
+          totalSets: ((old.totalSets ?? 1) - 1).clamp(0, old.totalSets ?? 1),
+          totalReps: old.totalReps,
+          lastValue: old.lastValue,
+          lastNotes: old.lastNotes,
+          isDue: old.isDue,
+          nextDue: old.nextDue,
+          daysOverdue: old.daysOverdue,
+          slotsDue: old.slotsDue,
+        );
+      }
+    });
+
+    try {
+      await widget.becomingApi.deleteLatestLog(
+        practiceId: practice.practiceId,
+        date: _today,
+      );
+    } catch (e) {
+      if (mounted) {
+        _loadAll();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to undo: $e'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -194,7 +248,8 @@ class TodayScreenState extends State<TodayScreen> {
           if (_practices != null) ...[
             _PracticesSection(
               practices: _practices!,
-              onComplete: _completePractice,
+              onLogSet: _logPracticeSet,
+              onUndoSet: _undoPracticeSet,
             ),
             const SizedBox(height: 16),
           ],
@@ -230,7 +285,7 @@ class TodayScreenState extends State<TodayScreen> {
     final now = DateTime.now();
     final dateStr = DateFormat('EEEE, MMMM d').format(now);
 
-    final completed = _practices?.where((p) => p.isCompletedToday).length ?? 0;
+    final completed = _practices?.where((p) => p.isFullyComplete).length ?? 0;
     final total = _practices?.length ?? 0;
     final dueCards = _dueCards?.length ?? 0;
     final brainDue = _brainActions?.length ?? 0;
@@ -500,24 +555,25 @@ class _MemorizeSectionState extends State<_MemorizeSection> {
 
 class _PracticesSection extends StatelessWidget {
   final List<DailySummary> practices;
-  final ValueChanged<DailySummary> onComplete;
+  final ValueChanged<DailySummary> onLogSet;
+  final ValueChanged<DailySummary> onUndoSet;
 
   const _PracticesSection({
     required this.practices,
-    required this.onComplete,
+    required this.onLogSet,
+    required this.onUndoSet,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final completed = practices.where((p) => p.isCompletedToday).length;
 
     // Separate non-memorize practices (memorize has its own section)
     final nonMemorize = practices.where((p) => p.practiceType != 'memorize').toList();
     if (nonMemorize.isEmpty) return const SizedBox.shrink();
 
-    final nonMemCompleted = nonMemorize.where((p) => p.isCompletedToday).length;
+    final nonMemCompleted = nonMemorize.where((p) => p.isFullyComplete).length;
 
     return Card(
       elevation: 0,
@@ -550,29 +606,128 @@ class _PracticesSection extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          ...nonMemorize.map((practice) {
-            final done = practice.isCompletedToday;
-            return ListTile(
-              leading: done
-                  ? Icon(Icons.check_circle, color: colorScheme.primary)
-                  : Icon(Icons.radio_button_unchecked, color: colorScheme.outline),
-              title: Text(
-                practice.practiceName,
-                style: done
-                    ? TextStyle(
-                        decoration: TextDecoration.lineThrough,
-                        color: colorScheme.outline,
-                      )
-                    : null,
-              ),
-              subtitle: practice.category.isNotEmpty
-                  ? Text(practice.category, style: theme.textTheme.bodySmall)
-                  : null,
-              onTap: done ? null : () => onComplete(practice),
-              dense: true,
-            );
-          }),
+          ...nonMemorize.map((practice) => _PracticeTile(
+                practice: practice,
+                onLogSet: onLogSet,
+                onUndoSet: onUndoSet,
+              )),
         ],
+      ),
+    );
+  }
+}
+
+class _PracticeTile extends StatelessWidget {
+  final DailySummary practice;
+  final ValueChanged<DailySummary> onLogSet;
+  final ValueChanged<DailySummary> onUndoSet;
+
+  const _PracticeTile({
+    required this.practice,
+    required this.onLogSet,
+    required this.onUndoSet,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final targetSets = practice.targetSets;
+    final completedSets = practice.completedSets;
+    final allDone = completedSets >= targetSets;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Practice name
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  practice.practiceName,
+                  style: allDone
+                      ? TextStyle(
+                          decoration: TextDecoration.lineThrough,
+                          color: colorScheme.outline,
+                        )
+                      : null,
+                ),
+                if (practice.category.isNotEmpty)
+                  Text(
+                    practice.category,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.outline,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Set buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(targetSets, (i) {
+              final setNum = i + 1;
+              final isDone = setNum <= completedSets;
+              return Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: _SetButton(
+                  setNum: setNum,
+                  isDone: isDone,
+                  onTap: () {
+                    if (isDone) {
+                      onUndoSet(practice);
+                    } else {
+                      onLogSet(practice);
+                    }
+                  },
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SetButton extends StatelessWidget {
+  final int setNum;
+  final bool isDone;
+  final VoidCallback onTap;
+
+  const _SetButton({
+    required this.setNum,
+    required this.isDone,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: isDone ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: isDone
+              ? Icon(Icons.check, size: 18, color: colorScheme.primary)
+              : Text(
+                  '$setNum',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.outline,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+        ),
       ),
     );
   }
