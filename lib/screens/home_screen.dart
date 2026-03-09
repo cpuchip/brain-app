@@ -87,9 +87,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else if (uri.host == 'entry' && uri.pathSegments.isNotEmpty) {
         final entryId = uri.pathSegments.first;
         _openEntryById(entryId);
-      } else if (uri.host == 'done' && uri.pathSegments.isNotEmpty) {
-        final entryId = uri.pathSegments.first;
-        _markDoneById(entryId);
       } else if (uri.host == 'create') {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -98,20 +95,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       }
     });
-  }
-
-  Future<void> _markDoneById(String entryId) async {
-    try {
-      final entries = await _api.getHistory(limit: 50);
-      final entry = entries.cast<HistoryEntry?>().firstWhere(
-        (e) => e!.id == entryId,
-        orElse: () => null,
-      );
-      if (entry != null) {
-        await _api.toggleDone(entry);
-        await _updateWidget();
-      }
-    } catch (_) {}
   }
 
   Future<void> _openEntryById(String entryId) async {

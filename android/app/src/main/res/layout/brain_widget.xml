@@ -82,8 +82,7 @@
             android:layout_marginEnd="6dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Mark done"
-            android:src="@android:drawable/checkbox_off_background"
-            android:tint="#9E9E9E" />
+            android:src="@drawable/ic_check_circle_outline" />
 
         <TextView
             android:id="@+id/entry_0_title"
@@ -121,8 +120,7 @@
             android:layout_marginEnd="6dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Mark done"
-            android:src="@android:drawable/checkbox_off_background"
-            android:tint="#9E9E9E" />
+            android:src="@drawable/ic_check_circle_outline" />
 
         <TextView
             android:id="@+id/entry_1_title"
@@ -160,8 +158,7 @@
             android:layout_marginEnd="6dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Mark done"
-            android:src="@android:drawable/checkbox_off_background"
-            android:tint="#9E9E9E" />
+            android:src="@drawable/ic_check_circle_outline" />
 
         <TextView
             android:id="@+id/entry_2_title"
@@ -199,8 +196,7 @@
             android:layout_marginEnd="6dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Mark done"
-            android:src="@android:drawable/checkbox_off_background"
-            android:tint="#9E9E9E" />
+            android:src="@drawable/ic_check_circle_outline" />
 
         <TextView
             android:id="@+id/entry_3_title"

@@ -9,6 +9,7 @@ import android.util.SizeF
 import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
+import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import android.app.PendingIntent
 import android.content.Intent
 
@@ -133,6 +134,11 @@ class BrainWidgetProvider : HomeWidgetProvider() {
                 views.setTextViewText(row.titleId, title)
                 views.setTextViewText(row.dueId, due)
 
+                // Swap checkbox drawable based on done state
+                val isDone = widgetData.getBoolean("entry_${i}_done", false)
+                views.setImageViewResource(row.checkId,
+                    if (isDone) R.drawable.ic_check_circle else R.drawable.ic_check_circle_outline)
+
                 if (entryId.isNotEmpty()) {
                     // Tap title area → open entry for editing
                     val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -147,16 +153,9 @@ class BrainWidgetProvider : HomeWidgetProvider() {
                     views.setOnClickPendingIntent(row.titleId, openPending)
                     views.setOnClickPendingIntent(row.dueId, openPending)
 
-                    // Checkbox → mark done (launches app with MARK_DONE intent)
-                    val doneIntent = Intent(context, MainActivity::class.java).apply {
-                        action = "MARK_DONE"
-                        data = Uri.parse("brainapp://done/$entryId")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }
-                    val donePending = PendingIntent.getActivity(
-                        context, 200 + i, doneIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
+                    // Checkbox → mark done via background callback (no app flash)
+                    val donePending = HomeWidgetBackgroundIntent.getBroadcast(
+                        context, Uri.parse("brainapp://done/$entryId"))
                     views.setOnClickPendingIntent(row.checkId, donePending)
                 }
             } else {

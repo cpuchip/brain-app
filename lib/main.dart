@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
@@ -14,6 +16,9 @@ final navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Register widget background callback for no-flash checkbox toggling
+  HomeWidget.registerInteractivityCallback(widgetBackgroundCallback);
 
   // Try loading .env (bundled asset), silently ignore if missing
   try {
@@ -51,6 +56,40 @@ class BrainApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       home: const AppShell(),
     );
+  }
+}
+
+/// Background callback for widget interactivity (mark-done, etc.).
+/// Runs in a background isolate — no UI, no app flash.
+@pragma('vm:entry-point')
+Future<void> widgetBackgroundCallback(Uri? uri) async {
+  if (uri == null) return;
+
+  if (uri.host == 'done' && uri.pathSegments.isNotEmpty) {
+    final entryId = uri.pathSegments.first;
+
+    // Optimistic: mark done in widget prefs immediately
+    for (var i = 0; i < 4; i++) {
+      final slotId = await HomeWidget.getWidgetData<String>('entry_${i}_id');
+      if (slotId == entryId) {
+        await HomeWidget.saveWidgetData('entry_${i}_done', true);
+        break;
+      }
+    }
+    await HomeWidget.updateWidget(name: 'BrainWidgetProvider');
+
+    // Call the API to persist the change
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+    final token = prefs.getString('brain_token') ?? '';
+    final brainUrl = prefs.getString('brain_direct_url') ?? '';
+
+    try {
+      final api = BrainApi(baseUrl: url, token: token, brainUrl: brainUrl);
+      await api.updateEntry(entryId, {'action_done': true});
+    } catch (_) {
+      // API failure — visual already updated, will resync on next refresh
+    }
   }
 }
 

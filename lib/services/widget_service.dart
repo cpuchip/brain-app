@@ -20,10 +20,12 @@ class WidgetService {
         await HomeWidget.saveWidgetData('entry_${i}_title', actions[i].title ?? '');
         await HomeWidget.saveWidgetData('entry_${i}_due', _relativeDue(actions[i]));
         await HomeWidget.saveWidgetData('entry_${i}_id', actions[i].id);
+        await HomeWidget.saveWidgetData('entry_${i}_done', false);
       } else {
         await HomeWidget.saveWidgetData('entry_${i}_title', '');
         await HomeWidget.saveWidgetData('entry_${i}_due', '');
         await HomeWidget.saveWidgetData('entry_${i}_id', '');
+        await HomeWidget.saveWidgetData('entry_${i}_done', false);
       }
     }
 
