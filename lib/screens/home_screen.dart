@@ -85,12 +85,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final list = (jsonDecode(raw) as List)
           .map((e) => PendingThought.fromJson(e as Map<String, dynamic>))
           .where((t) =>
-              DateTime.now().difference(t.timestamp).inHours < 24)
+              DateTime.now().difference(t.timestamp).inDays < 7)
           .toList();
       if (mounted && list.isNotEmpty) {
         setState(() => _thoughts.addAll(list));
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to load recent thoughts: $e');
+    }
   }
 
   /// Persist recent thoughts to SharedPreferences (keep last 20).
@@ -317,6 +319,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (_connectionState == BrainConnectionState.disconnected) {
         _brain.connect();
       }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _saveThoughts();
     }
   }
 
