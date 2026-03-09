@@ -67,23 +67,16 @@ class WidgetService {
       practices = practices.where((s) => s.category == filter).toList();
     }
 
-    // Limit to 5 slots
-    final display = practices.take(5).toList();
+    // Save all practices (widget ListView is scrollable)
+    final display = practices;
 
     await HomeWidget.saveWidgetData('practice_count', display.length);
-    for (var i = 0; i < 5; i++) {
-      if (i < display.length) {
-        final p = display[i];
-        await HomeWidget.saveWidgetData('practice_${i}_id', p.practiceId);
-        await HomeWidget.saveWidgetData('practice_${i}_name', p.practiceName);
-        await HomeWidget.saveWidgetData('practice_${i}_target_sets', p.targetSets);
-        await HomeWidget.saveWidgetData('practice_${i}_completed_sets', p.completedSets);
-      } else {
-        await HomeWidget.saveWidgetData('practice_${i}_id', 0);
-        await HomeWidget.saveWidgetData('practice_${i}_name', '');
-        await HomeWidget.saveWidgetData('practice_${i}_target_sets', 1);
-        await HomeWidget.saveWidgetData('practice_${i}_completed_sets', 0);
-      }
+    for (var i = 0; i < display.length; i++) {
+      final p = display[i];
+      await HomeWidget.saveWidgetData('practice_${i}_id', p.practiceId);
+      await HomeWidget.saveWidgetData('practice_${i}_name', p.practiceName);
+      await HomeWidget.saveWidgetData('practice_${i}_target_sets', p.targetSets);
+      await HomeWidget.saveWidgetData('practice_${i}_completed_sets', p.completedSets);
     }
 
     await HomeWidget.updateWidget(name: _practiceWidgetName);

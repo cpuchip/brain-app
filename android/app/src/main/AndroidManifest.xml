@@ -100,6 +100,10 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/practice_widget_info" />
         </receiver>
+        <!-- RemoteViewsService for scrollable practice widget list -->
+        <service android:name=".PracticeWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

@@ -4,9 +4,11 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
+import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
 import es.antonborri.home_widget.HomeWidgetProvider
 import android.app.PendingIntent
 import android.content.Intent
@@ -22,6 +24,8 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             val views = buildPracticeView(context, widgetData)
             appWidgetManager.updateAppWidget(widgetId, views)
+            // Trigger RemoteViewsFactory.onDataSetChanged()
+            appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.practice_list)
         }
     }
 
@@ -48,80 +52,28 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         // Progress text
         views.setTextViewText(R.id.practice_progress, "$completedCount/$count")
 
-        // Empty state
-        views.setViewVisibility(R.id.practice_empty, if (count > 0) View.GONE else View.VISIBLE)
-
-        data class PracticeRow(
-            val rowId: Int,
-            val nameId: Int,
-            val setIds: Array<Int>
-        )
-
-        val rows = arrayOf(
-            PracticeRow(R.id.practice_0, R.id.practice_0_name,
-                arrayOf(R.id.practice_0_set_0, R.id.practice_0_set_1, R.id.practice_0_set_2)),
-            PracticeRow(R.id.practice_1, R.id.practice_1_name,
-                arrayOf(R.id.practice_1_set_0, R.id.practice_1_set_1, R.id.practice_1_set_2)),
-            PracticeRow(R.id.practice_2, R.id.practice_2_name,
-                arrayOf(R.id.practice_2_set_0, R.id.practice_2_set_1, R.id.practice_2_set_2)),
-            PracticeRow(R.id.practice_3, R.id.practice_3_name,
-                arrayOf(R.id.practice_3_set_0, R.id.practice_3_set_1, R.id.practice_3_set_2)),
-            PracticeRow(R.id.practice_4, R.id.practice_4_name,
-                arrayOf(R.id.practice_4_set_0, R.id.practice_4_set_1, R.id.practice_4_set_2)),
-        )
-
-        for (i in rows.indices) {
-            val row = rows[i]
-            if (i < count) {
-                val name = widgetData.getString("practice_${i}_name", "") ?: ""
-                val practiceId = widgetData.getInt("practice_${i}_id", 0)
-                val targetSets = widgetData.getInt("practice_${i}_target_sets", 1)
-                val completedSets = widgetData.getInt("practice_${i}_completed_sets", 0)
-                val allDone = completedSets >= targetSets
-
-                views.setViewVisibility(row.rowId, View.VISIBLE)
-                views.setTextViewText(row.nameId, name)
-                // Dim name when all sets done
-                views.setTextColor(row.nameId, if (allDone) 0xFF777777.toInt() else 0xFFE0E0E0.toInt())
-
-                // Tap practice name → open app to Today tab
-                val openIntent = Intent(context, MainActivity::class.java).apply {
-                    action = "OPEN_TODAY"
-                    data = Uri.parse("brainapp://today")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                val openPending = PendingIntent.getActivity(
-                    context, 400 + i, openIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                views.setOnClickPendingIntent(row.nameId, openPending)
-
-                // Set buttons (up to 3)
-                for (s in row.setIds.indices) {
-                    if (s < targetSets) {
-                        val isDone = (s + 1) <= completedSets
-                        views.setViewVisibility(row.setIds[s], View.VISIBLE)
-                        views.setImageViewResource(row.setIds[s],
-                            if (isDone) R.drawable.ic_check_circle else R.drawable.ic_check_circle_outline)
-
-                        if (practiceId > 0) {
-                            // Tapping a set button → background callback to log/undo
-                            val setUri = if (isDone) {
-                                Uri.parse("brainapp://practice-undo/$practiceId")
-                            } else {
-                                Uri.parse("brainapp://practice-log/$practiceId")
-                            }
-                            val setPending = HomeWidgetBackgroundIntent.getBroadcast(context, setUri)
-                            views.setOnClickPendingIntent(row.setIds[s], setPending)
-                        }
-                    } else {
-                        views.setViewVisibility(row.setIds[s], View.GONE)
-                    }
-                }
-            } else {
-                views.setViewVisibility(row.rowId, View.GONE)
-            }
+        // Empty state vs list
+        if (count > 0) {
+            views.setViewVisibility(R.id.practice_empty, View.GONE)
+            views.setViewVisibility(R.id.practice_list, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.practice_empty, View.VISIBLE)
+            views.setViewVisibility(R.id.practice_list, View.GONE)
         }
+
+        // Set up ListView adapter
+        val serviceIntent = Intent(context, PracticeWidgetService::class.java)
+        views.setRemoteAdapter(R.id.practice_list, serviceIntent)
+
+        // Pending intent template for list item clicks (must be mutable for fill-in)
+        val templateIntent = Intent(context, HomeWidgetBackgroundReceiver::class.java)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val templatePending = PendingIntent.getBroadcast(context, 500, templateIntent, flags)
+        views.setPendingIntentTemplate(R.id.practice_list, templatePending)
 
         return views
     }

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="4dp"
+    android:paddingBottom="2dp">
+
+    <TextView
+        android:id="@+id/practice_item_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#E0E0E0"
+        android:textSize="13sp" />
+
+    <ImageButton
+        android:id="@+id/practice_item_set_0"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="3dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="Set 1"
+        android:scaleType="center"
+        android:src="@drawable/ic_check_circle_outline"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/practice_item_set_1"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="3dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="Set 2"
+        android:scaleType="center"
+        android:src="@drawable/ic_check_circle_outline"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/practice_item_set_2"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="3dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="Set 3"
+        android:scaleType="center"
+        android:src="@drawable/ic_check_circle_outline"
+        android:visibility="gone" />
+</LinearLayout>

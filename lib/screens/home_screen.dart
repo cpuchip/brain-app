@@ -319,9 +319,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (_connectionState == BrainConnectionState.disconnected) {
         _brain.connect();
       }
+      _mergeRecentThoughts();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       _saveThoughts();
+    }
+  }
+
+  /// Merge any new thoughts added by widget quick-add while app was backgrounded.
+  Future<void> _mergeRecentThoughts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('recent_thoughts');
+    if (raw == null) return;
+    try {
+      final stored = (jsonDecode(raw) as List)
+          .map((e) => PendingThought.fromJson(e as Map<String, dynamic>))
+          .where((t) => DateTime.now().difference(t.timestamp).inDays < 7)
+          .toList();
+      final existingIds = _thoughts.map((t) => t.id).toSet();
+      final newThoughts = stored.where((t) => !existingIds.contains(t.id)).toList();
+      if (mounted && newThoughts.isNotEmpty) {
+        setState(() {
+          for (final t in newThoughts) {
+            // Insert at position based on timestamp (newest first)
+            final idx = _thoughts.indexWhere((e) => e.timestamp.isBefore(t.timestamp));
+            if (idx == -1) {
+              _thoughts.add(t);
+            } else {
+              _thoughts.insert(idx, t);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to merge recent thoughts: $e');
     }
   }
 

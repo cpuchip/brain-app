@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/brain_api.dart';
+import '../services/brain_service.dart';
 import '../services/speech_service.dart';
 import '../services/widget_service.dart';
 
@@ -100,6 +103,8 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
       if (widget.api.hasBrainUrl) {
         widget.api.classifyEntry(entry.id).catchError((_) => null);
       }
+      // Save to recent_thoughts so capture tab picks it up
+      await _saveToRecentThoughts(text, entry);
       // Refresh widget data so the new entry appears
       try {
         final entries = await widget.api.getHistory(limit: 50);
@@ -114,6 +119,35 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
         );
       }
     }
+  }
+
+  /// Persist to recent_thoughts so the main app's capture tab sees it.
+  Future<void> _saveToRecentThoughts(String text, HistoryEntry entry) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('recent_thoughts');
+    List<Map<String, dynamic>> existing = [];
+    if (raw != null) {
+      try {
+        existing = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+      } catch (_) {}
+    }
+    final thought = PendingThought(
+      id: entry.id,
+      text: text,
+      timestamp: DateTime.now(),
+      sent: true,
+      result: BrainResult(
+        thoughtId: entry.id,
+        entryId: entry.id,
+        category: entry.category ?? 'inbox',
+        title: entry.title ?? text,
+        confidence: entry.confidence ?? 0.0,
+        tags: entry.tags,
+      ),
+    );
+    existing.insert(0, thought.toJson());
+    if (existing.length > 20) existing = existing.sublist(0, 20);
+    await prefs.setString('recent_thoughts', jsonEncode(existing));
   }
 
   void _dismiss() {
