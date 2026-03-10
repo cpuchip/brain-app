@@ -204,6 +204,36 @@ class TodayScreenState extends State<TodayScreen> {
     );
   }
 
+  void _showAddPractice() {
+    // Collect categories from existing practices
+    final cats = <String>{};
+    for (final p in _practices ?? <DailySummary>[]) {
+      for (final c in p.category.split(',')) {
+        final trimmed = c.trim();
+        if (trimmed.isNotEmpty) cats.add(trimmed);
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _AddPracticeSheet(
+        categories: cats.toList()..sort(),
+        onSubmit: (name, type, category) async {
+          await widget.becomingApi.createPractice(
+            name: name,
+            type: type,
+            category: category,
+          );
+          if (mounted) _loadAll();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _practices == null) {
@@ -257,6 +287,7 @@ class TodayScreenState extends State<TodayScreen> {
               practices: _practices!,
               onLogSet: _logPracticeSet,
               onUndoSet: _undoPracticeSet,
+              onAdd: _showAddPractice,
             ),
             const SizedBox(height: 16),
           ],
@@ -622,11 +653,13 @@ class _PracticesSection extends StatelessWidget {
   final List<DailySummary> practices;
   final ValueChanged<DailySummary> onLogSet;
   final ValueChanged<DailySummary> onUndoSet;
+  final VoidCallback? onAdd;
 
   const _PracticesSection({
     required this.practices,
     required this.onLogSet,
     required this.onUndoSet,
+    this.onAdd,
   });
 
   @override
@@ -683,6 +716,15 @@ class _PracticesSection extends StatelessWidget {
                     color: colorScheme.outline,
                   ),
                 ),
+                const Spacer(),
+                if (onAdd != null)
+                  IconButton(
+                    icon: const Icon(Icons.add, size: 20),
+                    onPressed: onAdd,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Add practice',
+                  ),
               ],
             ),
           ),
@@ -881,6 +923,157 @@ class _SetButton extends StatelessWidget {
                   ),
                 ),
         ),
+      ),
+    );
+  }
+}
+
+// --- Add Practice Sheet ---
+
+class _AddPracticeSheet extends StatefulWidget {
+  final List<String> categories;
+  final Future<void> Function(String name, String type, String category) onSubmit;
+
+  const _AddPracticeSheet({
+    required this.categories,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_AddPracticeSheet> createState() => _AddPracticeSheetState();
+}
+
+class _AddPracticeSheetState extends State<_AddPracticeSheet> {
+  final _nameController = TextEditingController();
+  String _type = 'habit';
+  String _category = '';
+  bool _submitting = false;
+  String? _error;
+
+  static const _types = ['habit', 'tracker', 'scheduled', 'task'];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+
+    try {
+      await widget.onSubmit(name, _type, _category);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _submitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 32,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('New Practice', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+
+          // Name
+          TextField(
+            controller: _nameController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 16),
+
+          // Type chips
+          Text('Type', style: theme.textTheme.labelMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: _types.map((t) => ChoiceChip(
+                  label: Text(t),
+                  selected: _type == t,
+                  onSelected: (_) => setState(() => _type = t),
+                )).toList(),
+          ),
+          const SizedBox(height: 16),
+
+          // Category chips (from existing practices)
+          if (widget.categories.isNotEmpty) ...[
+            Text('Category', style: theme.textTheme.labelMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                // "None" option
+                ChoiceChip(
+                  label: const Text('none'),
+                  selected: _category.isEmpty,
+                  onSelected: (_) => setState(() => _category = ''),
+                ),
+                ...widget.categories.map((c) => ChoiceChip(
+                      label: Text(c),
+                      selected: _category == c,
+                      onSelected: (_) => setState(() => _category = c),
+                    )),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Error
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.error),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Submit
+          FilledButton(
+            onPressed: _submitting || _nameController.text.trim().isEmpty ? null : _submit,
+            child: _submitting
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Create'),
+          ),
+        ],
       ),
     );
   }

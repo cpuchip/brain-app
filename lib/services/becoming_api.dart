@@ -114,6 +114,31 @@ class BecomingApi {
     return Practice.fromJson(jsonDecode(resp.body));
   }
 
+  /// Create a new practice.
+  Future<Practice> createPractice({
+    required String name,
+    required String type,
+    String category = '',
+    String description = '',
+    String config = '{}',
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$baseUrl/api/practices'),
+      headers: _headers,
+      body: jsonEncode({
+        'name': name,
+        'type': type,
+        'category': category,
+        'description': description,
+        'config': config,
+      }),
+    );
+    if (resp.statusCode != 201) {
+      throw Exception('Create practice failed: ${resp.statusCode}');
+    }
+    return Practice.fromJson(jsonDecode(resp.body));
+  }
+
   /// Get the next study exercise (smart card selection).
   Future<StudyExercise?> getStudyNext({
     required String date,
