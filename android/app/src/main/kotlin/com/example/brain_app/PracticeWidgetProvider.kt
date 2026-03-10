@@ -90,6 +90,17 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         val templatePending = PendingIntent.getBroadcast(context, 500 + widgetId, templateIntent, flags)
         views.setPendingIntentTemplate(R.id.practice_list, templatePending)
 
+        // + button → launches transparent quick-add practice overlay
+        val addIntent = Intent(context, QuickAddPracticeActivity::class.java).apply {
+            data = Uri.parse("brainapp://quick-add-practice")
+            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val addPending = PendingIntent.getActivity(
+            context, 700 + widgetId, addIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.practice_add, addPending)
+
         return views
     }
 }

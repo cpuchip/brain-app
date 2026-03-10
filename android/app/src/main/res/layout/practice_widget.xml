@@ -36,6 +36,18 @@
             android:paddingStart="8dp"
             android:textColor="#BB86FC"
             android:textSize="12sp" />
+
+        <!-- Add practice button -->
+        <ImageButton
+            android:id="@+id/practice_add"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Add practice"
+            android:src="@android:drawable/ic_input_add"
+            android:tint="#BB86FC"
+            android:scaleType="centerInside" />
     </LinearLayout>
 
     <!-- Empty state -->

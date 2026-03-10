@@ -50,6 +50,18 @@
             android:windowSoftInputMode="adjustResize"
             android:excludeFromRecents="true"
             android:autoRemoveFromRecents="true" />
+        <!-- Transparent overlay for quick-add practice from widget -->
+        <activity
+            android:name=".QuickAddPracticeActivity"
+            android:exported="true"
+            android:theme="@style/TransparentTheme"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:excludeFromRecents="true"
+            android:autoRemoveFromRecents="true" />
         <!-- Boot receiver for rescheduling notifications after reboot -->
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:exported="false">
