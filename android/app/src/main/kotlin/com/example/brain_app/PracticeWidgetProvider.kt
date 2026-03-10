@@ -47,20 +47,24 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         // Read ALL practices and filter locally
         val totalCount = widgetData.getInt("all_practice_count", 0)
         var filteredCount = 0
-        var completedCount = 0
+        var dueCount = 0
+        var dueCompletedCount = 0
         for (i in 0 until totalCount) {
             val cat = widgetData.getString("all_practice_${i}_category", "") ?: ""
             if (filter != "All" && cat != filter) continue
             filteredCount++
+            val isDue = widgetData.getBoolean("all_practice_${i}_is_due", true)
+            if (!isDue) continue  // not-due scheduled items don't count in progress
+            dueCount++
             val targetSets = widgetData.getInt("all_practice_${i}_target_sets", 1)
             val completedSets = widgetData.getInt("all_practice_${i}_completed_sets", 0)
-            if (completedSets >= targetSets) completedCount++
+            if (completedSets >= targetSets) dueCompletedCount++
         }
 
-        // Progress text
-        views.setTextViewText(R.id.practice_progress, "$completedCount/$filteredCount")
+        // Progress text — shows due items only
+        views.setTextViewText(R.id.practice_progress, "$dueCompletedCount/$dueCount")
 
-        // Empty state vs list
+        // Empty state vs list (show list if any practices match filter, including not-due)
         if (filteredCount > 0) {
             views.setViewVisibility(R.id.practice_empty, View.GONE)
             views.setViewVisibility(R.id.practice_list, View.VISIBLE)

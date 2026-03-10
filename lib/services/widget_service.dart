@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'brain_api.dart';
@@ -46,8 +47,8 @@ class WidgetService {
   }
 
   /// Update practice widget with daily summary data.
-  /// Pushes ALL non-memorize practices unfiltered — each widget instance
-  /// filters locally by its per-instance category preference.
+  /// Pushes ALL non-memorize practices unfiltered with full type info —
+  /// each widget instance filters locally by its per-instance category preference.
   Future<void> updatePracticeWidget(List<DailySummary> summaries) async {
     // Push all non-memorize practices (filtering happens per-widget in Kotlin)
     final practices = summaries
@@ -60,8 +61,13 @@ class WidgetService {
       await HomeWidget.saveWidgetData('all_practice_${i}_id', p.practiceId);
       await HomeWidget.saveWidgetData('all_practice_${i}_name', p.practiceName);
       await HomeWidget.saveWidgetData('all_practice_${i}_category', p.category);
+      await HomeWidget.saveWidgetData('all_practice_${i}_type', p.practiceType);
       await HomeWidget.saveWidgetData('all_practice_${i}_target_sets', p.targetSets);
       await HomeWidget.saveWidgetData('all_practice_${i}_completed_sets', p.completedSets);
+      await HomeWidget.saveWidgetData('all_practice_${i}_is_due', p.isDue ?? true);
+      await HomeWidget.saveWidgetData('all_practice_${i}_next_due', p.nextDue ?? '');
+      await HomeWidget.saveWidgetData('all_practice_${i}_days_overdue', p.daysOverdue);
+      await HomeWidget.saveWidgetData('all_practice_${i}_schedule_label', _scheduleLabel(p));
     }
 
     // Save available categories for the cycle-filter
@@ -73,5 +79,41 @@ class WidgetService {
     await HomeWidget.saveWidgetData('practice_categories', sorted.join(','));
 
     await HomeWidget.updateWidget(name: _practiceWidgetName);
+  }
+
+  /// Build a short schedule label for widget display.
+  String _scheduleLabel(DailySummary p) {
+    if (p.practiceType == 'habit') return '';
+    if (p.practiceType == 'tracker') return '';
+    if (p.practiceType == 'task') return 'one-time';
+    if (p.practiceType != 'scheduled') return '';
+
+    try {
+      final data = jsonDecode(p.config) as Map<String, dynamic>;
+      final sched = data['schedule'] as Map<String, dynamic>?;
+      if (sched == null) return '';
+
+      final type = sched['type'] as String? ?? '';
+      switch (type) {
+        case 'interval':
+          final days = (sched['interval_days'] as num?)?.toInt() ?? 1;
+          return 'every ${days}d';
+        case 'daily_slots':
+          final slots = (sched['slots'] as List?)?.join(', ') ?? '';
+          return slots;
+        case 'weekly':
+          final days = (sched['days'] as List?)?.join(', ') ?? '';
+          return days;
+        case 'monthly':
+          final day = sched['day_of_month'] ?? '';
+          return 'monthly ($day)';
+        case 'once':
+          return 'one-time';
+        default:
+          return '';
+      }
+    } catch (_) {
+      return '';
+    }
   }
 }

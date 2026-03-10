@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
@@ -610,6 +612,12 @@ class _MemorizeSectionState extends State<_MemorizeSection> {
 
 // --- Practices Section ---
 
+/// Whether a practice is due today (non-scheduled types are always due).
+bool _isDueToday(DailySummary p) {
+  if (p.practiceType == 'scheduled') return p.isDue == true;
+  return true;
+}
+
 class _PracticesSection extends StatelessWidget {
   final List<DailySummary> practices;
   final ValueChanged<DailySummary> onLogSet;
@@ -630,7 +638,23 @@ class _PracticesSection extends StatelessWidget {
     final nonMemorize = practices.where((p) => p.practiceType != 'memorize').toList();
     if (nonMemorize.isEmpty) return const SizedBox.shrink();
 
-    final nonMemCompleted = nonMemorize.where((p) => p.isFullyComplete).length;
+    // Sort: due+incomplete → due+complete → not-due
+    nonMemorize.sort((a, b) {
+      final aDue = _isDueToday(a);
+      final bDue = _isDueToday(b);
+      if (aDue != bDue) return aDue ? -1 : 1;
+      if (aDue) {
+        if (a.isFullyComplete != b.isFullyComplete) {
+          return a.isFullyComplete ? 1 : -1;
+        }
+        return b.daysOverdue.compareTo(a.daysOverdue);
+      }
+      return 0;
+    });
+
+    // Progress: due items only
+    final dueItems = nonMemorize.where(_isDueToday);
+    final dueCompleted = dueItems.where((p) => p.isFullyComplete).length;
 
     return Card(
       elevation: 0,
@@ -654,7 +678,7 @@ class _PracticesSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '$nonMemCompleted/${nonMemorize.length}',
+                  '$dueCompleted/${dueItems.length}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.outline,
                   ),
@@ -685,6 +709,49 @@ class _PracticeTile extends StatelessWidget {
     required this.onUndoSet,
   });
 
+  String? get _scheduleInfo {
+    if (practice.practiceType == 'task') return 'one-time';
+    if (practice.practiceType != 'scheduled') return null;
+    try {
+      final data = jsonDecode(practice.config) as Map<String, dynamic>;
+      final schedType = data['schedule_type'] as String?;
+      switch (schedType) {
+        case 'interval':
+          final days = data['interval_days'] ?? 1;
+          return 'every ${days}d';
+        case 'daily_slots':
+          final slots = (data['daily_slots'] as List?)?.cast<String>() ?? [];
+          return slots.join(', ');
+        case 'weekly':
+          final days = (data['weekly_days'] as List?)?.cast<String>() ?? [];
+          return days.map((d) => d.length >= 3 ? d.substring(0, 3) : d).join(', ');
+        case 'monthly':
+          final day = data['monthly_day'] ?? 1;
+          return 'monthly (day $day)';
+        case 'once':
+          return 'one-time';
+        default:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _relativeDue(String dateStr) {
+    try {
+      final due = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final diff = DateTime(due.year, due.month, due.day).difference(today).inDays;
+      if (diff <= 0) return 'today';
+      if (diff == 1) return 'tomorrow';
+      return 'in ${diff}d';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -692,12 +759,35 @@ class _PracticeTile extends StatelessWidget {
     final targetSets = practice.targetSets;
     final completedSets = practice.completedSets;
     final allDone = completedSets >= targetSets;
+    final isDue = _isDueToday(practice);
 
-    return Padding(
+    // Build subtitle spans
+    final subtitleParts = <InlineSpan>[];
+    if (practice.category.isNotEmpty) {
+      subtitleParts.add(TextSpan(text: practice.category));
+    }
+
+    if (!isDue && practice.nextDue != null) {
+      if (subtitleParts.isNotEmpty) subtitleParts.add(const TextSpan(text: ' · '));
+      subtitleParts.add(TextSpan(text: 'next: ${_relativeDue(practice.nextDue!)}'));
+    } else if (isDue && practice.daysOverdue > 0) {
+      if (subtitleParts.isNotEmpty) subtitleParts.add(const TextSpan(text: ' · '));
+      subtitleParts.add(TextSpan(
+        text: '${practice.daysOverdue}d overdue',
+        style: TextStyle(color: colorScheme.error),
+      ));
+    }
+
+    final schedLabel = _scheduleInfo;
+    if (schedLabel != null) {
+      if (subtitleParts.isNotEmpty) subtitleParts.add(const TextSpan(text: ' · '));
+      subtitleParts.add(TextSpan(text: schedLabel));
+    }
+
+    final tile = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Practice name
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -711,9 +801,9 @@ class _PracticeTile extends StatelessWidget {
                         )
                       : null,
                 ),
-                if (practice.category.isNotEmpty)
-                  Text(
-                    practice.category,
+                if (subtitleParts.isNotEmpty)
+                  Text.rich(
+                    TextSpan(children: subtitleParts),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.outline,
                     ),
@@ -721,7 +811,7 @@ class _PracticeTile extends StatelessWidget {
               ],
             ),
           ),
-          // Set buttons
+          // Set buttons (still actionable even when not due)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: List.generate(targetSets, (i) {
@@ -746,6 +836,12 @@ class _PracticeTile extends StatelessWidget {
         ],
       ),
     );
+
+    // Dim not-due items but keep them interactive
+    if (!isDue) {
+      return Opacity(opacity: 0.5, child: tile);
+    }
+    return tile;
   }
 }
 

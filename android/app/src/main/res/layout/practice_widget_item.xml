@@ -7,15 +7,32 @@
     android:paddingTop="4dp"
     android:paddingBottom="2dp">
 
-    <TextView
-        android:id="@+id/practice_item_name"
+    <!-- Name + subtitle column -->
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:textColor="#E0E0E0"
-        android:textSize="13sp" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/practice_item_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#E0E0E0"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/practice_item_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#9E9E9E"
+            android:textSize="10sp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <ImageButton
         android:id="@+id/practice_item_set_0"
