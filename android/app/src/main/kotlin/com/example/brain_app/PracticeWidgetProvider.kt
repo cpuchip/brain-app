@@ -110,6 +110,11 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.practice_add, addPending)
 
+        // Refresh button → background callback to re-fetch data
+        val refreshPending = HomeWidgetBackgroundIntent.getBroadcast(
+            context, Uri.parse("brainapp://refresh"))
+        views.setOnClickPendingIntent(R.id.practice_refresh, refreshPending)
+
         return views
     }
 }

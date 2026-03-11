@@ -48,6 +48,18 @@
             android:src="@android:drawable/ic_input_add"
             android:tint="#BB86FC"
             android:scaleType="centerInside" />
+
+        <!-- Refresh button -->
+        <ImageButton
+            android:id="@+id/practice_refresh"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="2dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Refresh"
+            android:src="@android:drawable/stat_notify_sync"
+            android:tint="#9E9E9E"
+            android:scaleType="centerInside" />
     </LinearLayout>
 
     <!-- Empty state -->

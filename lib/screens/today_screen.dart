@@ -133,6 +133,10 @@ class TodayScreenState extends State<TodayScreen> {
         reps: slotName != null ? null : practice.targetReps,
         value: slotName,
       );
+      // Push updated data to widget
+      if (_practices != null) {
+        WidgetService().updatePracticeWidget(_practices!).catchError((_) {});
+      }
     } catch (e) {
       // Revert on failure
       if (mounted) {
@@ -147,8 +151,8 @@ class TodayScreenState extends State<TodayScreen> {
     }
   }
 
-  Future<void> _undoPracticeSet(DailySummary practice) async {
-    if (practice.completedSets <= 0) return;
+  Future<void> _undoPracticeSet(DailySummary practice, {String? slotName}) async {
+    if (practice.completedSets <= 0 && slotName == null) return;
 
     // Optimistic update
     setState(() {
@@ -173,7 +177,9 @@ class TodayScreenState extends State<TodayScreen> {
           isDue: old.isDue,
           nextDue: old.nextDue,
           daysOverdue: old.daysOverdue,
-          slotsDue: old.slotsDue,
+          slotsDue: slotName != null && !old.slotsDue.contains(slotName)
+              ? [...old.slotsDue, slotName]
+              : old.slotsDue,
         );
       }
     });
@@ -183,6 +189,10 @@ class TodayScreenState extends State<TodayScreen> {
         practiceId: practice.practiceId,
         date: _today,
       );
+      // Push updated data to widget
+      if (_practices != null) {
+        WidgetService().updatePracticeWidget(_practices!).catchError((_) {});
+      }
     } catch (e) {
       if (mounted) {
         _loadAll();
@@ -706,7 +716,7 @@ bool _isDueToday(DailySummary p) {
 class _PracticesSection extends StatelessWidget {
   final List<DailySummary> practices;
   final void Function(DailySummary practice, {String? slotName}) onLogSet;
-  final ValueChanged<DailySummary> onUndoSet;
+  final void Function(DailySummary practice, {String? slotName}) onUndoSet;
   final VoidCallback? onAdd;
 
   const _PracticesSection({
@@ -797,7 +807,7 @@ class _PracticesSection extends StatelessWidget {
 class _PracticeTile extends StatelessWidget {
   final DailySummary practice;
   final void Function(DailySummary practice, {String? slotName}) onLogSet;
-  final ValueChanged<DailySummary> onUndoSet;
+  final void Function(DailySummary practice, {String? slotName}) onUndoSet;
 
   const _PracticeTile({
     required this.practice,
@@ -943,7 +953,7 @@ class _PracticeTile extends StatelessWidget {
                     isDone: isDone,
                     onTap: () {
                       if (isDone) {
-                        onUndoSet(practice);
+                        onUndoSet(practice, slotName: slotName);
                       } else {
                         onLogSet(practice, slotName: slotName);
                       }
