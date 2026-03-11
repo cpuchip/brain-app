@@ -1,6 +1,13 @@
 # Brain App (Flutter) — build & run
 # Usage: .\start.ps1 [-Target <android|web|apk>] [-Release]
 #
+# Quick one-liners:
+#   .\start.ps1 -Target apk -Release   # Release APK for sideloading
+#   .\start.ps1 -Target apk            # Debug APK
+#   .\start.ps1                         # Run on Android device (debug)
+#   .\start.ps1 -Release               # Run on Android device (release)
+#   .\start.ps1 -Target web            # Run in Chrome
+#
 # Targets:
 #   android  — Run on connected Android device/emulator (default)
 #   web      — Run in Chrome (hot reload)
