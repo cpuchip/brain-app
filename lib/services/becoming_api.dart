@@ -121,17 +121,22 @@ class BecomingApi {
     String category = '',
     String description = '',
     String config = '{}',
+    String? startDate,
+    String? endDate,
   }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'type': type,
+      'category': category,
+      'description': description,
+      'config': config,
+    };
+    if (startDate != null) body['start_date'] = startDate;
+    if (endDate != null) body['end_date'] = endDate;
     final resp = await http.post(
       Uri.parse('$baseUrl/api/practices'),
       headers: _headers,
-      body: jsonEncode({
-        'name': name,
-        'type': type,
-        'category': category,
-        'description': description,
-        'config': config,
-      }),
+      body: jsonEncode(body),
     );
     if (resp.statusCode != 201) {
       throw Exception('Create practice failed: ${resp.statusCode}');
