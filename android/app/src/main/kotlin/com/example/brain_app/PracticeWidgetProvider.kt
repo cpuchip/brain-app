@@ -56,9 +56,18 @@ class PracticeWidgetProvider : HomeWidgetProvider() {
             val isDue = widgetData.getBoolean("all_practice_${i}_is_due", true)
             if (!isDue) continue  // not-due scheduled items don't count in progress
             dueCount++
-            val targetSets = widgetData.getInt("all_practice_${i}_target_sets", 1)
-            val completedSets = widgetData.getInt("all_practice_${i}_completed_sets", 0)
-            if (completedSets >= targetSets) dueCompletedCount++
+            val slotNames = (widgetData.getString("all_practice_${i}_slot_names", "") ?: "")
+                .split(",").filter { it.isNotEmpty() }
+            val slotsDue = (widgetData.getString("all_practice_${i}_slots_due", "") ?: "")
+                .split(",").filter { it.isNotEmpty() }
+            val isComplete = if (slotNames.isNotEmpty()) {
+                slotsDue.isEmpty()
+            } else {
+                val targetSets = widgetData.getInt("all_practice_${i}_target_sets", 1)
+                val completedSets = widgetData.getInt("all_practice_${i}_completed_sets", 0)
+                completedSets >= targetSets
+            }
+            if (isComplete) dueCompletedCount++
         }
 
         // Progress text — shows due items only

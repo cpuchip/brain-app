@@ -48,6 +48,7 @@ class BecomingApi {
     required String date,
     int? sets,
     int? reps,
+    String? value,
   }) async {
     final body = <String, dynamic>{
       'practice_id': practiceId,
@@ -55,6 +56,7 @@ class BecomingApi {
     };
     if (sets != null) body['sets'] = sets;
     if (reps != null) body['reps'] = reps;
+    if (value != null) body['value'] = value;
 
     final resp = await http.post(
       Uri.parse('$baseUrl/api/logs'),
@@ -338,7 +340,23 @@ class DailySummary {
   }
 
   /// Whether all target sets are completed.
-  bool get isFullyComplete => completedSets >= targetSets;
+  /// For daily_slots scheduled practices, checks if all slots are done.
+  bool get isFullyComplete {
+    if (_isDailySlots) return slotsDue.isEmpty;
+    return completedSets >= targetSets;
+  }
+
+  /// Whether this is a daily_slots scheduled practice.
+  bool get _isDailySlots {
+    if (practiceType != 'scheduled') return false;
+    try {
+      final data = jsonDecode(config) as Map<String, dynamic>;
+      final sched = data['schedule'] as Map<String, dynamic>?;
+      return sched?['type'] == 'daily_slots';
+    } catch (_) {
+      return false;
+    }
+  }
 
   factory DailySummary.fromJson(Map<String, dynamic> json) => DailySummary(
         practiceId: json['practice_id'] as int,

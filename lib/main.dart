@@ -101,14 +101,22 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
   if (uri.host == 'practice-log' && uri.pathSegments.isNotEmpty) {
     final practiceId = int.tryParse(uri.pathSegments.first);
     if (practiceId == null) return;
+    final slotName = uri.queryParameters['slot'];
 
-    // Optimistic: bump completed_sets in shared (unfiltered) practice data
+    // Optimistic: update shared (unfiltered) practice data
     final count = await HomeWidget.getWidgetData<int>('all_practice_count') ?? 0;
     for (var i = 0; i < count; i++) {
       final id = await HomeWidget.getWidgetData<int>('all_practice_${i}_id');
       if (id == practiceId) {
         final completed = await HomeWidget.getWidgetData<int>('all_practice_${i}_completed_sets') ?? 0;
         await HomeWidget.saveWidgetData('all_practice_${i}_completed_sets', completed + 1);
+        // For daily_slots: remove this slot from slots_due
+        if (slotName != null) {
+          final slotsStr = await HomeWidget.getWidgetData<String>('all_practice_${i}_slots_due') ?? '';
+          final slots = slotsStr.split(',').where((s) => s.isNotEmpty).toList();
+          slots.remove(slotName);
+          await HomeWidget.saveWidgetData('all_practice_${i}_slots_due', slots.join(','));
+        }
         break;
       }
     }
@@ -122,13 +130,14 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
 
     try {
       final api = BecomingApi(baseUrl: url, token: token);
-      await api.logPractice(practiceId: practiceId, date: today, sets: 1);
+      await api.logPractice(practiceId: practiceId, date: today, sets: 1, value: slotName);
     } catch (_) {}
   }
 
   if (uri.host == 'practice-undo' && uri.pathSegments.isNotEmpty) {
     final practiceId = int.tryParse(uri.pathSegments.first);
     if (practiceId == null) return;
+    final slotName = uri.queryParameters['slot'];
 
     // Optimistic: decrement completed_sets in shared (unfiltered) practice data
     final count = await HomeWidget.getWidgetData<int>('all_practice_count') ?? 0;
@@ -138,6 +147,15 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
         final completed = await HomeWidget.getWidgetData<int>('all_practice_${i}_completed_sets') ?? 0;
         if (completed > 0) {
           await HomeWidget.saveWidgetData('all_practice_${i}_completed_sets', completed - 1);
+        }
+        // For daily_slots: add this slot back to slots_due
+        if (slotName != null) {
+          final slotsStr = await HomeWidget.getWidgetData<String>('all_practice_${i}_slots_due') ?? '';
+          final slots = slotsStr.split(',').where((s) => s.isNotEmpty).toList();
+          if (!slots.contains(slotName)) {
+            slots.add(slotName);
+            await HomeWidget.saveWidgetData('all_practice_${i}_slots_due', slots.join(','));
+          }
         }
         break;
       }
@@ -222,6 +240,21 @@ void quickAddMain() async {
   final api = BrainApi(baseUrl: url, token: token, brainUrl: brainUrl);
 
   runApp(QuickAddApp(mode: mode, api: api));
+}
+
+/// Third entrypoint for the transparent QuickAddPracticeActivity.
+/// Runs in a separate Flutter engine — loads its own credentials.
+@pragma('vm:entry-point')
+void quickAddPracticeMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
+  final token = prefs.getString('brain_token') ?? '';
+
+  final api = BecomingApi(baseUrl: url, token: token);
+
+  runApp(QuickAddPracticeApp(api: api));
 }
 
 class QuickAddApp extends StatelessWidget {

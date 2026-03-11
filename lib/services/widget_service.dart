@@ -68,6 +68,9 @@ class WidgetService {
       await HomeWidget.saveWidgetData('all_practice_${i}_next_due', p.nextDue ?? '');
       await HomeWidget.saveWidgetData('all_practice_${i}_days_overdue', p.daysOverdue);
       await HomeWidget.saveWidgetData('all_practice_${i}_schedule_label', _scheduleLabel(p));
+      // For daily_slots: push slot names and remaining slots
+      await HomeWidget.saveWidgetData('all_practice_${i}_slot_names', _slotNames(p));
+      await HomeWidget.saveWidgetData('all_practice_${i}_slots_due', p.slotsDue.join(','));
     }
 
     // Save available categories for the cycle-filter
@@ -112,6 +115,21 @@ class WidgetService {
         default:
           return '';
       }
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Extract slot names from config for daily_slots practices.
+  String _slotNames(DailySummary p) {
+    if (p.practiceType != 'scheduled') return '';
+    try {
+      final data = jsonDecode(p.config) as Map<String, dynamic>;
+      final sched = data['schedule'] as Map<String, dynamic>?;
+      if (sched == null) return '';
+      if (sched['type'] != 'daily_slots') return '';
+      final slots = (sched['slots'] as List?)?.cast<String>() ?? [];
+      return slots.join(',');
     } catch (_) {
       return '';
     }

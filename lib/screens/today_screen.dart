@@ -94,7 +94,7 @@ class TodayScreenState extends State<TodayScreen> {
     }
   }
 
-  Future<void> _logPracticeSet(DailySummary practice) async {
+  Future<void> _logPracticeSet(DailySummary practice, {String? slotName}) async {
     // Optimistic update
     setState(() {
       final idx = _practices?.indexWhere((p) => p.practiceId == practice.practiceId);
@@ -113,12 +113,14 @@ class TodayScreenState extends State<TodayScreen> {
           logCount: old.logCount + 1,
           totalSets: (old.totalSets ?? 0) + 1,
           totalReps: old.totalReps,
-          lastValue: old.lastValue,
+          lastValue: slotName ?? old.lastValue,
           lastNotes: old.lastNotes,
           isDue: old.isDue,
           nextDue: old.nextDue,
           daysOverdue: old.daysOverdue,
-          slotsDue: old.slotsDue,
+          slotsDue: slotName != null
+              ? old.slotsDue.where((s) => s != slotName).toList()
+              : old.slotsDue,
         );
       }
     });
@@ -127,8 +129,9 @@ class TodayScreenState extends State<TodayScreen> {
       await widget.becomingApi.logPractice(
         practiceId: practice.practiceId,
         date: _today,
-        sets: 1,
-        reps: practice.targetReps,
+        sets: slotName != null ? null : 1,
+        reps: slotName != null ? null : practice.targetReps,
+        value: slotName,
       );
     } catch (e) {
       // Revert on failure
@@ -223,14 +226,16 @@ class TodayScreenState extends State<TodayScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
         return DraggableScrollableSheet(
           initialChildSize: 0.85,
           minChildSize: 0.5,
           maxChildSize: 0.95,
           expand: false,
-          builder: (ctx, scrollController) => Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+          builder: (ctx, scrollController) {
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+            final navBar = MediaQuery.of(ctx).viewPadding.bottom;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + navBar),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -276,7 +281,8 @@ class TodayScreenState extends State<TodayScreen> {
                 ),
               ],
             ),
-          ),
+          );
+          },
         );
       },
     );
@@ -699,7 +705,7 @@ bool _isDueToday(DailySummary p) {
 
 class _PracticesSection extends StatelessWidget {
   final List<DailySummary> practices;
-  final ValueChanged<DailySummary> onLogSet;
+  final void Function(DailySummary practice, {String? slotName}) onLogSet;
   final ValueChanged<DailySummary> onUndoSet;
   final VoidCallback? onAdd;
 
@@ -790,7 +796,7 @@ class _PracticesSection extends StatelessWidget {
 
 class _PracticeTile extends StatelessWidget {
   final DailySummary practice;
-  final ValueChanged<DailySummary> onLogSet;
+  final void Function(DailySummary practice, {String? slotName}) onLogSet;
   final ValueChanged<DailySummary> onUndoSet;
 
   const _PracticeTile({
@@ -799,34 +805,49 @@ class _PracticeTile extends StatelessWidget {
     required this.onUndoSet,
   });
 
-  String? get _scheduleInfo {
-    if (practice.practiceType == 'task') return 'one-time';
+  /// Parse nested schedule config: {"schedule": {"type": "...", ...}}
+  Map<String, dynamic>? get _scheduleConfig {
     if (practice.practiceType != 'scheduled') return null;
     try {
       final data = jsonDecode(practice.config) as Map<String, dynamic>;
-      final schedType = data['schedule_type'] as String?;
-      switch (schedType) {
-        case 'interval':
-          final days = data['interval_days'] ?? 1;
-          return 'every ${days}d';
-        case 'daily_slots':
-          final slots = (data['daily_slots'] as List?)?.cast<String>() ?? [];
-          return slots.join(', ');
-        case 'weekly':
-          final days = (data['weekly_days'] as List?)?.cast<String>() ?? [];
-          return days.map((d) => d.length >= 3 ? d.substring(0, 3) : d).join(', ');
-        case 'monthly':
-          final day = data['monthly_day'] ?? 1;
-          return 'monthly (day $day)';
-        case 'once':
-          return 'one-time';
-        default:
-          return null;
-      }
+      return data['schedule'] as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
   }
+
+  String? get _scheduleInfo {
+    if (practice.practiceType == 'task') return 'one-time';
+    final sched = _scheduleConfig;
+    if (sched == null) return null;
+    final schedType = sched['type'] as String? ?? '';
+    switch (schedType) {
+      case 'interval':
+        final days = sched['interval_days'] ?? 1;
+        return 'every ${days}d';
+      case 'daily_slots':
+        return null; // slots are shown as named buttons, not in subtitle
+      case 'weekly':
+        final days = (sched['days'] as List?)?.cast<String>() ?? [];
+        return days.map((d) => d.length >= 3 ? d.substring(0, 3) : d).join(', ');
+      case 'monthly':
+        final day = sched['day_of_month'] ?? 1;
+        return 'monthly (day $day)';
+      case 'once':
+        return 'one-time';
+      default:
+        return null;
+    }
+  }
+
+  /// For daily_slots type: get all slot names from config.
+  List<String> get _allSlots {
+    final sched = _scheduleConfig;
+    if (sched == null || sched['type'] != 'daily_slots') return [];
+    return (sched['slots'] as List?)?.cast<String>() ?? [];
+  }
+
+  bool get _isDailySlots => _allSlots.isNotEmpty;
 
   String _relativeDue(String dateStr) {
     try {
@@ -846,10 +867,18 @@ class _PracticeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final targetSets = practice.targetSets;
-    final completedSets = practice.completedSets;
-    final allDone = completedSets >= targetSets;
     final isDue = _isDueToday(practice);
+    final allSlots = _allSlots;
+    final isDailySlots = allSlots.isNotEmpty;
+
+    // For daily_slots: completion is per-slot via slotsDue
+    // For everything else: use targetSets / completedSets
+    final bool allDone;
+    if (isDailySlots) {
+      allDone = practice.slotsDue.isEmpty;
+    } else {
+      allDone = practice.completedSets >= practice.targetSets;
+    }
 
     // Build subtitle spans
     final subtitleParts = <InlineSpan>[];
@@ -901,28 +930,50 @@ class _PracticeTile extends StatelessWidget {
               ],
             ),
           ),
-          // Set buttons (still actionable even when not due)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(targetSets, (i) {
-              final setNum = i + 1;
-              final isDone = setNum <= completedSets;
-              return Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: _SetButton(
-                  setNum: setNum,
-                  isDone: isDone,
-                  onTap: () {
-                    if (isDone) {
-                      onUndoSet(practice);
-                    } else {
-                      onLogSet(practice);
-                    }
-                  },
-                ),
-              );
-            }),
-          ),
+          // Buttons: named slots for daily_slots, numbered sets for everything else
+          if (isDailySlots)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: allSlots.map((slotName) {
+                final isDone = !practice.slotsDue.contains(slotName);
+                return Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: _SlotButton(
+                    slotName: slotName,
+                    isDone: isDone,
+                    onTap: () {
+                      if (isDone) {
+                        onUndoSet(practice);
+                      } else {
+                        onLogSet(practice, slotName: slotName);
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(practice.targetSets, (i) {
+                final setNum = i + 1;
+                final isDone = setNum <= practice.completedSets;
+                return Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: _SetButton(
+                    setNum: setNum,
+                    isDone: isDone,
+                    onTap: () {
+                      if (isDone) {
+                        onUndoSet(practice);
+                      } else {
+                        onLogSet(practice);
+                      }
+                    },
+                  ),
+                );
+              }),
+            ),
         ],
       ),
     );
@@ -966,6 +1017,62 @@ class _SetButton extends StatelessWidget {
                   '$setNum',
                   style: TextStyle(
                     fontSize: 13,
+                    color: colorScheme.outline,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlotButton extends StatelessWidget {
+  final String slotName;
+  final bool isDone;
+  final VoidCallback onTap;
+
+  const _SlotButton({
+    required this.slotName,
+    required this.isDone,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: isDone ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.center,
+          child: isDone
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check, size: 14, color: colorScheme.primary),
+                    const SizedBox(width: 2),
+                    Text(
+                      slotName,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  slotName,
+                  style: TextStyle(
+                    fontSize: 11,
                     color: colorScheme.outline,
                     fontWeight: FontWeight.w500,
                   ),

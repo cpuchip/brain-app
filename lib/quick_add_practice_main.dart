@@ -1,26 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'services/becoming_api.dart';
 import 'services/widget_service.dart';
 import 'widgets/practice_form.dart';
-
-/// Entrypoint for the transparent QuickAddPracticeActivity.
-/// Shows a full-featured practice creation overlay, creates the practice,
-/// refreshes widgets, then closes.
-@pragma('vm:entry-point')
-void quickAddPracticeMain() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  final prefs = await SharedPreferences.getInstance();
-  final url = prefs.getString('brain_url') ?? 'https://ibeco.me';
-  final token = prefs.getString('brain_token') ?? '';
-
-  final api = BecomingApi(baseUrl: url, token: token);
-
-  runApp(QuickAddPracticeApp(api: api));
-}
 
 class QuickAddPracticeApp extends StatelessWidget {
   final BecomingApi api;
@@ -113,53 +96,63 @@ class _QuickAddPracticeScreenState extends State<_QuickAddPracticeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final navPadding = MediaQuery.of(context).viewPadding.bottom;
 
-    return Scaffold(
-      backgroundColor: Colors.black54,
-      body: GestureDetector(
-        onTap: _close,
-        child: Center(
-          child: GestureDetector(
-            onTap: () {}, // prevent pass-through
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-              constraints: const BoxConstraints(maxHeight: 600),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
+      onTap: _close,
+      child: Scaffold(
+        backgroundColor: Colors.black54,
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          children: [
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 60,
+              bottom: bottomInset + navPadding + 16,
+              child: GestureDetector(
+                onTap: () {}, // absorb taps so scrim doesn't dismiss
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 600),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          height: 80,
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                              child: Text(
+                                'New Practice',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Flexible(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                child: PracticeForm(
+                                  existingCategories: _categories,
+                                  onSubmit: _onSubmit,
+                                  onCancel: _close,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
-              child: _loading
-                  ? const SizedBox(
-                      height: 80,
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                          child: Text(
-                            'New Practice',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Flexible(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                            child: PracticeForm(
-                              existingCategories: _categories,
-                              onSubmit: _onSubmit,
-                              onCancel: _close,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
             ),
-          ),
+          ],
         ),
       ),
     );
