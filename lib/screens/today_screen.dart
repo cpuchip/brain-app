@@ -80,7 +80,7 @@ class TodayScreenState extends State<TodayScreen> {
 
   Future<List<HistoryEntry>> _loadBrainActions() async {
     try {
-      final entries = await widget.brainApi.getHistory(limit: 50);
+      final entries = (await widget.brainApi.getHistory(limit: 50)).entries;
       final today = DateTime.now();
       return entries.where((e) {
         if (e.isDone) return false;

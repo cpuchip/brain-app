@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'entry_cache.dart';
+import 'offline_queue.dart';
 
 /// REST client for the brain API (status, entries, CRUD).
 ///
@@ -14,7 +16,16 @@ class BrainApi {
   /// When set, status/entries/CRUD go here instead of [baseUrl].
   final String? brainUrl;
 
+  /// Local entry cache for offline fallback.
+  final EntryCache _cache = EntryCache();
+
+  /// Offline queue for write operations that fail.
+  OfflineQueue? _offlineQueue;
+
   BrainApi({required this.baseUrl, required this.token, this.brainUrl});
+
+  /// Set the offline queue reference (called from HomeScreen after init).
+  void setOfflineQueue(OfflineQueue queue) => _offlineQueue = queue;
 
   /// Whether a direct brain.exe connection is configured.
   bool get hasBrainUrl => brainUrl != null && brainUrl!.isNotEmpty;
@@ -41,54 +52,84 @@ class BrainApi {
 
   /// Get brain entries. Uses /api/brain/entries (synced cache) on relay,
   /// or /api/brain/history on direct brain.exe.
-  Future<List<HistoryEntry>> getHistory({int limit = 50}) async {
-    if (hasBrainUrl) {
-      // Direct mode: use brain.exe history endpoint
-      final resp = await http.get(
-        Uri.parse('$brainUrl/api/brain/history?limit=$limit'),
-        headers: _headers,
-      );
-      if (resp.statusCode != 200) {
-        throw Exception('History request failed: ${resp.statusCode}');
+  /// Returns a [HistoryResult] with entries and a stale flag.
+  /// On network failure, returns cached data if available.
+  Future<HistoryResult> getHistory({int limit = 50}) async {
+    try {
+      List<HistoryEntry> entries;
+      if (hasBrainUrl) {
+        // Direct mode: use brain.exe history endpoint
+        final resp = await http.get(
+          Uri.parse('$brainUrl/api/brain/history?limit=$limit'),
+          headers: _headers,
+        );
+        if (resp.statusCode != 200) {
+          throw Exception('History request failed: ${resp.statusCode}');
+        }
+        final data = jsonDecode(resp.body);
+        final items = data['messages'] as List? ?? [];
+        entries = items.map((e) => HistoryEntry.fromJson(e)).toList();
+      } else {
+        // Relay mode: use synced brain_entries cache
+        final resp = await http.get(
+          Uri.parse('$baseUrl/api/brain/entries'),
+          headers: _headers,
+        );
+        if (resp.statusCode != 200) {
+          throw Exception('Entries request failed: ${resp.statusCode}');
+        }
+        final data = jsonDecode(resp.body);
+        final items = data['entries'] as List? ?? [];
+        entries = items.map((e) => HistoryEntry.fromBrainEntry(e)).toList();
       }
-      final data = jsonDecode(resp.body);
-      final items = data['messages'] as List? ?? [];
-      return items.map((e) => HistoryEntry.fromJson(e)).toList();
-    }
 
-    // Relay mode: use synced brain_entries cache
-    final resp = await http.get(
-      Uri.parse('$baseUrl/api/brain/entries'),
-      headers: _headers,
-    );
-    if (resp.statusCode != 200) {
-      throw Exception('Entries request failed: ${resp.statusCode}');
+      // Cache on success
+      await _cache.cacheEntries(entries);
+      return HistoryResult(entries: entries, isStale: false);
+    } catch (e) {
+      // Network failure — try cached data
+      final cached = await _cache.getCachedEntries();
+      if (cached != null && cached.entries.isNotEmpty) {
+        return HistoryResult(
+          entries: cached.entries,
+          isStale: true,
+          cachedAt: cached.cachedAt,
+        );
+      }
+      // No cache available — rethrow
+      rethrow;
     }
-    final data = jsonDecode(resp.body);
-    final items = data['entries'] as List? ?? [];
-    return items.map((e) => HistoryEntry.fromBrainEntry(e)).toList();
   }
 
   /// Update an entry. Works via relay (ibeco.me) or direct (brain.exe).
+  /// On network failure, enqueues for offline sync.
   Future<void> updateEntry(String id, Map<String, dynamic> updates) async {
-    if (hasBrainUrl) {
-      final resp = await http.put(
-        Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
-        headers: _headers,
-        body: jsonEncode(updates),
-      );
-      if (resp.statusCode != 200) {
-        throw Exception('Update failed: ${resp.statusCode}');
+    try {
+      if (hasBrainUrl) {
+        final resp = await http.put(
+          Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
+          headers: _headers,
+          body: jsonEncode(updates),
+        );
+        if (resp.statusCode != 200) {
+          throw Exception('Update failed: ${resp.statusCode}');
+        }
+      } else {
+        final resp = await http.put(
+          Uri.parse('$baseUrl/api/brain/entries?id=${Uri.encodeComponent(id)}'),
+          headers: _headers,
+          body: jsonEncode(updates),
+        );
+        if (resp.statusCode != 200) {
+          throw Exception('Update failed: ${resp.statusCode}');
+        }
       }
-    } else {
-      final resp = await http.put(
-        Uri.parse('$baseUrl/api/brain/entries?id=${Uri.encodeComponent(id)}'),
-        headers: _headers,
-        body: jsonEncode(updates),
-      );
-      if (resp.statusCode != 200) {
-        throw Exception('Update failed: ${resp.statusCode}');
+    } catch (e) {
+      if (_offlineQueue != null) {
+        await _offlineQueue!.enqueue('entry_update', {'id': id, 'updates': updates});
+        return; // Queued successfully — don't throw
       }
+      rethrow;
     }
   }
 
@@ -98,23 +139,32 @@ class BrainApi {
   }
 
   /// Delete an entry. Works via relay (ibeco.me) or direct (brain.exe).
+  /// On network failure, enqueues for offline sync.
   Future<void> deleteEntry(String id) async {
-    if (hasBrainUrl) {
-      final resp = await http.delete(
-        Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
-        headers: _headers,
-      );
-      if (resp.statusCode != 204 && resp.statusCode != 200) {
-        throw Exception('Delete failed: ${resp.statusCode}');
+    try {
+      if (hasBrainUrl) {
+        final resp = await http.delete(
+          Uri.parse('$brainUrl/api/entries/${Uri.encodeComponent(id)}'),
+          headers: _headers,
+        );
+        if (resp.statusCode != 204 && resp.statusCode != 200) {
+          throw Exception('Delete failed: ${resp.statusCode}');
+        }
+      } else {
+        final resp = await http.delete(
+          Uri.parse('$baseUrl/api/brain/entries?id=${Uri.encodeComponent(id)}'),
+          headers: _headers,
+        );
+        if (resp.statusCode != 200 && resp.statusCode != 204) {
+          throw Exception('Delete failed: ${resp.statusCode}');
+        }
       }
-    } else {
-      final resp = await http.delete(
-        Uri.parse('$baseUrl/api/brain/entries?id=${Uri.encodeComponent(id)}'),
-        headers: _headers,
-      );
-      if (resp.statusCode != 200 && resp.statusCode != 204) {
-        throw Exception('Delete failed: ${resp.statusCode}');
+    } catch (e) {
+      if (_offlineQueue != null) {
+        await _offlineQueue!.enqueue('entry_delete', {'id': id});
+        return;
       }
+      rethrow;
     }
   }
 
@@ -313,6 +363,15 @@ class BrainStatus {
   }
 }
 
+/// Result from getHistory(), carrying a stale flag for offline fallback.
+class HistoryResult {
+  final List<HistoryEntry> entries;
+  final bool isStale;
+  final DateTime? cachedAt;
+
+  HistoryResult({required this.entries, this.isStale = false, this.cachedAt});
+}
+
 class HistoryEntry {
   final String id;
   final String text;
@@ -397,6 +456,22 @@ class HistoryEntry {
     if (v is List) return v.map((e) => SubTask.fromJson(e as Map<String, dynamic>)).toList();
     return [];
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'text': text,
+    'category': category,
+    'title': title,
+    'confidence': confidence,
+    'created_at': timestamp.toIso8601String(),
+    'processed': processed,
+    'action_done': actionDone,
+    'status': status,
+    'due_date': dueDate,
+    'next_action': nextAction,
+    'tags': tags,
+    'subtasks': subtasks.map((s) => s.toJson()).toList(),
+  };
 }
 
 class SubTask {

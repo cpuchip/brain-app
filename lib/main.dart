@@ -183,7 +183,7 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
 
     try {
       final api = BrainApi(baseUrl: url, token: token, brainUrl: brainUrl);
-      final entries = await api.getHistory(limit: 50);
+      final entries = (await api.getHistory(limit: 50)).entries;
       await WidgetService().updateWidget(entries);
     } catch (_) {}
 

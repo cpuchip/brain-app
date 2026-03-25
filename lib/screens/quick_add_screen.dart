@@ -107,7 +107,7 @@ class _QuickAddScreenState extends State<QuickAddScreen> {
       await _saveToRecentThoughts(text, entry);
       // Refresh widget data so the new entry appears
       try {
-        final entries = await widget.api.getHistory(limit: 50);
+        final entries = (await widget.api.getHistory(limit: 50)).entries;
         await WidgetService().updateWidget(entries);
       } catch (_) {}
       if (mounted) _dismiss();

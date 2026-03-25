@@ -23,6 +23,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<HistoryEntry>? _entries;
   String? _error;
   bool _loading = true;
+  bool _isStale = false;
+  DateTime? _cachedAt;
 
   // Search & filter state
   final _searchController = TextEditingController();
@@ -115,16 +117,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     try {
-      final entries = await widget.api.getHistory(limit: 50);
+      final result = await widget.api.getHistory(limit: 50);
       if (mounted) {
         setState(() {
-          _entries = entries;
+          _entries = result.entries;
+          _isStale = result.isStale;
+          _cachedAt = result.cachedAt;
           _loading = false;
         });
       }
       // Rebuild notification reminders and update widget
-      NotificationService().rebuildReminders(entries);
-      WidgetService().updateWidget(entries);
+      NotificationService().rebuildReminders(result.entries);
+      WidgetService().updateWidget(result.entries);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -274,6 +278,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     final body = Column(
       children: [
+        // Offline banner
+        if (_isStale)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.amber.shade100,
+            child: Row(
+              children: [
+                Icon(Icons.cloud_off, size: 16, color: Colors.amber.shade800),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _cachedAt != null
+                        ? 'Offline — showing cached data from ${DateFormat('MMM d, h:mm a').format(_cachedAt!)}'
+                        : 'Offline — showing cached data',
+                    style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                  ),
+                ),
+                InkWell(
+                  onTap: _loadHistory,
+                  child: Icon(Icons.refresh, size: 16, color: Colors.amber.shade800),
+                ),
+              ],
+            ),
+          ),
         // Search bar
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),

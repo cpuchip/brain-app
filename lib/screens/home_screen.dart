@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _openEntryById(String entryId) async {
     try {
-      final entries = await _api.getHistory(limit: 50);
+      final entries = (await _api.getHistory(limit: 50)).entries;
       final entry = entries.cast<HistoryEntry?>().firstWhere(
         (e) => e!.id == entryId,
         orElse: () => null,
@@ -153,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         case 'mark_done':
           try {
             // Find entry type to toggle correctly
-            final entries = await _api.getHistory(limit: 50);
+            final entries = (await _api.getHistory(limit: 50)).entries;
             final entry = entries.cast<HistoryEntry?>().firstWhere(
               (e) => e!.id == entryId,
               orElse: () => null,
@@ -168,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         default:
           // Open entry for editing
           try {
-            final entries = await _api.getHistory(limit: 50);
+            final entries = (await _api.getHistory(limit: 50)).entries;
             final entry = entries.cast<HistoryEntry?>().firstWhere(
               (e) => e!.id == entryId,
               orElse: () => null,
@@ -191,6 +191,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _initOfflineQueue() {
     _offlineQueue.startMonitoring(_brain, _api);
+    _api.setOfflineQueue(_offlineQueue);
     _offlineQueue.onCountChanged = (count) {
       if (mounted) setState(() => _queueCount = count);
     };
@@ -206,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _updateWidget() async {
     try {
-      final entries = await _api.getHistory(limit: 50);
+      final entries = (await _api.getHistory(limit: 50)).entries;
       await WidgetService().updateWidget(entries);
     } catch (_) {}
   }
@@ -456,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else {
       // Fetch recent entries and match by title + approximate timestamp
       try {
-        final entries = await _api.getHistory(limit: 20);
+        final entries = (await _api.getHistory(limit: 20)).entries;
         entry = entries.cast<HistoryEntry?>().firstWhere(
           (e) => e!.title == result.title && e.category == result.category,
           orElse: () => null,
