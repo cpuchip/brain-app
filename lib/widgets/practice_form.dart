@@ -44,7 +44,7 @@ class _PracticeFormState extends State<PracticeForm> {
   final _descController = TextEditingController();
   String _type = 'habit';
   final Set<String> _selectedCategories = {};
-  String _customCategory = '';
+  final String _customCategory = '';
   bool _submitting = false;
   String? _error;
 
@@ -370,7 +370,7 @@ class _PracticeFormState extends State<PracticeForm> {
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _unit,
+                  initialValue: _unit,
                   decoration: const InputDecoration(
                     labelText: 'Unit',
                     border: OutlineInputBorder(),

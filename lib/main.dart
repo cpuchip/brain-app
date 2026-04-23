@@ -14,7 +14,6 @@ import 'services/offline_queue.dart';
 import 'services/brain_api.dart';
 import 'services/widget_service.dart';
 // Separate entrypoints — must be imported so AOT includes them
-import 'widget_filter_main.dart';
 import 'quick_add_practice_main.dart';
 
 /// Global navigator key for notification tap navigation.

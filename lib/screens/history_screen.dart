@@ -30,7 +30,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _categoryFilter;
-  bool _showArchived = false;
+  bool _showParked = false;
   bool _showDone = false;
   Timer? _debounce;
   StreamSubscription<EntryUpdatedEvent>? _entryUpdatedSub;
@@ -96,9 +96,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return entries.where((e) {
       // Category filter
       if (_categoryFilter != null && e.category != _categoryFilter) return false;
-      // Archive filter: hide archived unless showing archived
-      if (!_showArchived && e.status == 'archived') return false;
-      if (_showArchived && e.status != 'archived') return false;
+      // Parked filter: hide someday/archived unless showing parked
+      final isParked = e.status == 'someday' || e.status == 'archived';
+      if (!_showParked && isParked) return false;
+      if (_showParked && !isParked) return false;
       // Done filter
       if (_showDone && !e.isDone) return false;
       // Text search
@@ -395,9 +396,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
           IconButton(
-            icon: Icon(_showArchived ? Icons.inventory_2 : Icons.inventory_2_outlined),
-            tooltip: _showArchived ? 'Show active' : 'Show archived',
-            onPressed: () => setState(() => _showArchived = !_showArchived),
+            icon: Icon(_showParked ? Icons.inventory_2 : Icons.inventory_2_outlined),
+            tooltip: _showParked ? 'Show active' : 'Show parked (someday / archived)',
+            onPressed: () => setState(() => _showParked = !_showParked),
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -444,7 +445,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     final entries = _filteredEntries;
     if (entries.isEmpty) {
-      final hasFilters = _searchQuery.isNotEmpty || _categoryFilter != null || _showDone || _showArchived;
+      final hasFilters = _searchQuery.isNotEmpty || _categoryFilter != null || _showDone || _showParked;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -472,7 +473,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   _searchQuery = '';
                   _categoryFilter = null;
                   _showDone = false;
-                  _showArchived = false;
+                  _showParked = false;
                 }),
                 icon: const Icon(Icons.clear_all),
                 label: const Text('Clear filters'),
@@ -495,8 +496,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           // Swipe to delete (left) or archive (right), toggle done for actionable
           return Dismissible(
             key: Key(entry.id),
-            direction: _showArchived
-                ? DismissDirection.endToStart  // archived view: only delete
+            direction: _showParked
+                ? DismissDirection.endToStart  // parked view: only delete
                 : DismissDirection.horizontal, // normal view: both directions
             background: Container(
               alignment: Alignment.centerLeft,
