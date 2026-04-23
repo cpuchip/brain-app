@@ -52,6 +52,18 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
     'journal',
   ];
 
+  // Stable status vocabulary — must match brain.exe (see EntryDetailView.vue STATUS_OPTIONS)
+  // and the parked-filter logic ('someday' + 'archived' = parked).
+  static const _statuses = <String>[
+    '',         // (none)
+    'active',
+    'waiting',
+    'roadmap',
+    'someday',
+    'done',
+    'archived',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -469,17 +481,24 @@ class _EditEntryScreenState extends State<EditEntryScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: TextField(
-                      controller: TextEditingController(text: _status)
-                        ..addListener(() {}),
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _statuses.contains(_status) ? _status : '',
                       decoration: const InputDecoration(
                         labelText: 'Status',
-                        hintText: 'active, done, waiting...',
                         border: OutlineInputBorder(),
                       ),
+                      items: _statuses
+                          .map((s) => DropdownMenuItem(
+                                value: s,
+                                child: Text(s.isEmpty ? '(none)' : s),
+                              ))
+                          .toList(),
                       onChanged: (v) {
-                        _status = v;
-                        _markDirty();
+                        if (v == null) return;
+                        setState(() {
+                          _status = v;
+                          _dirty = true;
+                        });
                       },
                     ),
                   ),

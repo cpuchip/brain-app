@@ -165,9 +165,99 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  /// Set an arbitrary status on an entry with undo. Used by the long-press
+  /// quick-actions sheet for one-tap close-out from the list.
+  Future<void> _setStatus(HistoryEntry entry, String newStatus, {String? verb}) async {
+    final previousStatus = entry.status ?? '';
+    if (previousStatus == newStatus) return;
+    try {
+      await widget.api.updateEntry(entry.id, {'status': newStatus});
+      await _loadHistory();
+      if (mounted) {
+        final label = verb ?? 'Set to "$newStatus"';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$label — "${entry.title ?? 'entry'}"'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () async {
+                await widget.api.updateEntry(entry.id, {
+                  'status': previousStatus.isEmpty ? 'active' : previousStatus,
+                });
+                await _loadHistory();
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update status: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show a bottom sheet with one-tap status quick actions for an entry.
+  /// This is the mobile-first triage path: long-press → tap done/park/archive.
+  void _showStatusQuickActions(HistoryEntry entry) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) {
+        Widget tile(IconData icon, String label, Color color, VoidCallback onTap) {
+          return ListTile(
+            leading: Icon(icon, color: color),
+            title: Text(label),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              onTap();
+            },
+          );
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Text(
+                  entry.title ?? entry.text,
+                  style: Theme.of(sheetCtx).textTheme.titleSmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              tile(Icons.check_circle, 'Mark done', Colors.green.shade600,
+                  () => _setStatus(entry, 'done', verb: 'Done')),
+              tile(Icons.bedtime_outlined, 'Park (someday)', Colors.amber.shade700,
+                  () => _setStatus(entry, 'someday', verb: 'Parked')),
+              tile(Icons.hourglass_top, 'Waiting', Colors.grey.shade600,
+                  () => _setStatus(entry, 'waiting', verb: 'Waiting')),
+              tile(Icons.archive, 'Archive', Colors.brown.shade400,
+                  () => _archiveEntry(entry)),
+              const Divider(height: 1),
+              tile(Icons.refresh, 'Reactivate', Colors.blue.shade600,
+                  () => _setStatus(entry, 'active', verb: 'Active')),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _deleteEntry(HistoryEntry entry) async {
     // Optimistic remove from local list
     final entries = _entries;
+
     if (entries == null) return;
     final idx = entries.indexOf(entry);
     setState(() => entries.remove(entry));
@@ -558,6 +648,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               entry: entry,
               onToggleDone: () => _toggleDone(entry),
               onTap: () => _editEntry(entry),
+              onLongPress: () => _showStatusQuickActions(entry),
             ),
           );
         },
@@ -570,8 +661,9 @@ class _HistoryCard extends StatelessWidget {
   final HistoryEntry entry;
   final VoidCallback? onToggleDone;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
-  const _HistoryCard({required this.entry, this.onToggleDone, this.onTap});
+  const _HistoryCard({required this.entry, this.onToggleDone, this.onTap, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -586,6 +678,7 @@ class _HistoryCard extends StatelessWidget {
       color: colorScheme.surfaceContainerLow,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -614,20 +707,24 @@ class _HistoryCard extends StatelessWidget {
                   const SizedBox(width: 8),
                 ],
                 if (entry.status != null && entry.status!.isNotEmpty) ...[
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      entry.status!,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: Colors.amber.shade700,
+                  Builder(builder: (_) {
+                    final statusColor = _statusColor(entry.status!);
+                    return Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                  ),
+                      child: Text(
+                        entry.status!,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }),
                   const SizedBox(width: 8),
                 ],
                 if (entry.confidence != null)
@@ -840,6 +937,21 @@ class _HistoryCard extends StatelessWidget {
       'reflection' => Colors.purple.shade500,
       'connection' => Colors.teal.shade600,
       _ => colorScheme.outline,
+    };
+  }
+
+  // Stable status palette — keep in sync with brain.exe EntryDetailView.vue.
+  // active=blue (in motion), waiting=gray (blocked), roadmap=purple (planned),
+  // someday=amber (parked), done=green (closed), archived=stone (archived).
+  Color _statusColor(String status) {
+    return switch (status) {
+      'active' => Colors.blue.shade600,
+      'waiting' => Colors.grey.shade600,
+      'roadmap' => Colors.purple.shade500,
+      'someday' => Colors.amber.shade700,
+      'done' => Colors.green.shade600,
+      'archived' => Colors.brown.shade400,
+      _ => Colors.grey.shade500,
     };
   }
 }
